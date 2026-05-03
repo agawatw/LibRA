@@ -9,8 +9,8 @@ using namespace std::filesystem;
 namespace test{
 TEST(MSSplitTest, UIFactory) {
   // The Factory Settings.
-  int argc = 1;
-  const char* argv[] = {"./mssplit"};
+  int argc = 2;
+  const char* argv[] = {"./mssplit", "help=noprompt"};
 
   // The Factory Settings.
   string MSNBuf,OutMSBuf,fieldStr,timeStr,spwStr,baselineStr,

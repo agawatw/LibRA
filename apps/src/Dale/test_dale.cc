@@ -277,8 +277,8 @@ TEST(DaleTest, AppLevelModel) {
 
 TEST(DaleTest, UIFactory) {
     // The Factory Settings.
-  int argc = 1;
-  const char* argv[] = {"./dale"};
+  int argc = 2;
+  const char* argv[] = {"./dale", "help=noprompt"};
 
   string imageName="notEmpty", normtype="flatnoise", imType="psf";
   string weightImageName, sowImageName;

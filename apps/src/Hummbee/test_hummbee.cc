@@ -370,8 +370,8 @@ TEST(HummbeeTest,  AppLevelMfsRestore) {
 
 TEST(HummbeeTest, UIFactory) {
     // The Factory Settings.
-  int argc = 1;
-  const char* argv[] = {"./hummbee"};
+  int argc = 2;
+  const char* argv[] = {"./hummbee", "help=noprompt"};
 
   // The Factory Settings.
   string imageName, modelImageName, deconvolver="hogbom", specmode="mfs";

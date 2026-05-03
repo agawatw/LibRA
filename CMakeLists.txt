@@ -42,7 +42,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/dependencies/Parafeed.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/dependencies/Pybind11.cmake)
 
 # Build gtest on if tests are enabled
-if(Apps_BUILD_TESTS)
+if(BUILD_TESTING)
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/dependencies/GTest.cmake)
 endif()
 

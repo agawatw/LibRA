@@ -92,8 +92,8 @@ namespace test{
 
   TEST(CoyoteTest, UIFactory) {
     // The Factory Settings.
-    int argc = 1;
-    const char* argv[] = {"./coyote"};
+    int argc = 2;
+  const char* argv[] = {"./coyote", "help=noprompt"};
 
     // The Factory Settings.
     string MSNBuf="", cfCache="test", fieldStr="", spwStr="*",

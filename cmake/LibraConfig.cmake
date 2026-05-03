@@ -64,9 +64,14 @@ option(USE_CCACHE "Enable use of ccache for compilation" OFF)
 option(LIBRA_USE_LIBSAKURA "Enable use of Sakura library" OFF)
 option(LIBRA_USE_EXODUS "Enable use of Exodus" OFF)
 option(CASACORE_DATA_DOWNLOAD "Enable download of casacore data" ON)
-option(Apps_BUILD_TESTS "Enable building of Apps tests" OFF)
+option(BUILD_TESTING "Build and register C++ test suite (gmake test / ctest)" OFF)
 option(LIBRA_USE_SPACK "Enable use of Spack" OFF)
 option(LIBRA_ENABLE_CUDA_BACKEND "Enable CUDA acceleration" ON)
+
+# Backward-compat alias: -DApps_BUILD_TESTS=ON still works
+if(Apps_BUILD_TESTS AND NOT BUILD_TESTING)
+  set(BUILD_TESTING ON CACHE BOOL "Build and register C++ test suite" FORCE)
+endif()
 
 # System info
 

@@ -23,6 +23,6 @@ add_subdirectory(Utilities)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/examples)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/translation)
 
-if(Apps_BUILD_TESTS)
+if(BUILD_TESTING)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tests)
 endif()

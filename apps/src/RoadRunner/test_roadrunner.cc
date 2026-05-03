@@ -366,8 +366,8 @@ TEST(RoadrunnerTest, Interface_rmode_minus2) {
 
 TEST(RoadrunnerTest, UIFactory) {
     // The Factory Settings.
-  int argc = 1;
-  const char* argv[] = {"./roadrunner"};
+  int argc = 2;
+  const char* argv[] = {"./roadrunner", "help=noprompt"};
 
 
   string MSNBuf,ftmName="awphpg",
@@ -404,8 +404,8 @@ TEST(RoadrunnerTest, UIFactory) {
 
 
 TEST(RoadrunnerTest, UIThrow) {
-  int argc = 1;
-  char* argv[] = {"./roadrunner"};
+  int argc = 2;
+  char* argv[] = {"./roadrunner", (char*)"help=noprompt"};
 
   string MSNBuf,ftmName="awphpg",
     cfCache, fieldStr="", spwStr="*", uvDistStr="", dataColumnName="data",
