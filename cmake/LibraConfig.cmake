@@ -65,6 +65,7 @@ option(LIBRA_USE_LIBSAKURA "Enable use of Sakura library" OFF)
 option(LIBRA_USE_EXODUS "Enable use of Exodus" OFF)
 option(CASACORE_DATA_DOWNLOAD "Enable download of casacore data" ON)
 option(BUILD_TESTING "Build and register C++ test suite (gmake test / ctest)" OFF)
+option(Apps_BUILD_TESTS_PYTHON "Build and register Python pytest tests" OFF)
 option(LIBRA_USE_SPACK "Enable use of Spack" OFF)
 option(LIBRA_ENABLE_CUDA_BACKEND "Enable CUDA acceleration" ON)
 

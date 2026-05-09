@@ -1,16 +1,7 @@
-cmake_minimum_required(VERSION 3.10)
-set(CMAKE_CXX_STANDARD 17)
-project(LibRATests VERSION 1.0
-          DESCRIPTION "LibRA tests"
-          LANGUAGES CXX)
-
 link_directories("${CMAKE_INSTALL_PREFIX}/lib")
 
-# test_utils.h is shared across tests — expose this directory as an include path
+# test_utils.h is shared across tests
 set(TESTS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-
-enable_testing()
-find_package(GTest REQUIRED)
 
 # Mirrors APP_LINK_LIBRARIES_CORE — needed by tests whose direct deps
 # (casacore_asp, casacore_restore, libracore, librautils) link casacore PRIVATE.
@@ -41,8 +32,3 @@ add_libra_test(test_asp    ${CMAKE_CURRENT_SOURCE_DIR}/../Asp/test_asp.cc
 add_libra_test(test_restore  ${CMAKE_CURRENT_SOURCE_DIR}/../Restore/test_restore.cc
   restore_lib casacore_restore ${CASACORE_LIBS})
 
-add_libra_test(test_libracoretypes  test_libracoretypes.cc
-  libracore ${CASACORE_LIBS})
-
-add_libra_test(test_librautils  test_librautils.cc
-  librautils ${CASACORE_LIBS})

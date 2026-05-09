@@ -56,8 +56,9 @@ TEST(ChipTest, AppLevelPSF) {
 
 TEST(ChipTest, UIFactory) {
     // The Factory Settings.
-  int argc = 2;
-  const char* argv[] = {"./chip", "help=noprompt"};
+  int argc = 4;
+  const char* argv[] = {"./chip", "help=noprompt",
+                        "imagename=test", "outputimage=testout"};
 
   std::vector<std::string> imageName={"notEmpty"};
   string outputImage="notEmpty", stats="none";

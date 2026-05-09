@@ -44,6 +44,15 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/dependencies/Pybind11.cmake)
 # Build gtest on if tests are enabled
 if(BUILD_TESTING)
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/dependencies/GTest.cmake)
+  # Materialize gold standard reference data submodule
+  execute_process(
+    COMMAND git submodule update --init apps/src/tests/gold_standard
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    RESULT_VARIABLE _gold_standard_result
+  )
+  if(NOT _gold_standard_result EQUAL 0)
+    message(WARNING "gold_standard submodule init failed -- tests requiring reference data may fail")
+  endif()
 endif()
 
 # Include components

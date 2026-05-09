@@ -10,8 +10,9 @@ namespace test{
 
 TEST(SubMSTest, UIFactory) {
     // The Factory Settings.
-  int argc = 2;
-  const char* argv[] = {"./subms", "help=noprompt"};
+  int argc = 4;
+  const char* argv[] = {"./subms", "help=noprompt",
+                        "ms=testin.ms", "outms=testout.ms"};
 
   // The Factory Settings.
    string MSNBuf,OutMSBuf,WhichColStr="data",fieldStr="*",timeStr,spwStr="*",

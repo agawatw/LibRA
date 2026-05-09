@@ -9,8 +9,8 @@ using namespace std::filesystem;
 namespace test{
 TEST(TableInfoTest, UIFactory) {
     // The Factory Settings.
-  int argc = 2;
-  const char* argv[] = {"./tableinfo", "help=noprompt"};
+  int argc = 3;
+  const char* argv[] = {"./tableinfo", "help=noprompt", "table=test.ms"};
 
   // The Factory Settings.
       bool restartUI = false;
