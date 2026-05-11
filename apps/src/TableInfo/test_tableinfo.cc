@@ -10,7 +10,10 @@ namespace test{
 TEST(TableInfoTest, UIFactory) {
     // The Factory Settings.
   int argc = 3;
-  const char* argv[] = {"./tableinfo", "help=noprompt", "table=test.ms"};
+  char arg0[] = "./tableinfo";
+  char arg1[] = "help=noprompt";
+  char arg2[] = "table=test.ms";
+  char* argv[] = {arg0, arg1, arg2};
 
   // The Factory Settings.
       bool restartUI = false;
@@ -20,7 +23,7 @@ TEST(TableInfoTest, UIFactory) {
       OutBuf="";
       bool interactive = false;
       
-      UI(restartUI,argc, (char **)argv, interactive, MSNBuf,OutBuf,verbose);
+      UI(restartUI,argc, argv, interactive, MSNBuf,OutBuf,verbose);
 }
 
 };
