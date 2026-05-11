@@ -52,8 +52,9 @@ jobs:
           base_path=$PWD
           export LD_LIBRARY_PATH=${base_path}/install/lib:$LD_LIBRARY_PATH
           mkdir -p ${base_path}/reports
-          cd ${base_path}/build/Libra
-          ctest --output-on-failure \
+          # Tests are registered by the inner Apps ExternalProject (BINARY_DIR=build/Libra/apps)
+          ctest --test-dir ${base_path}/build/Libra/apps \
+                --output-on-failure \
                 --output-junit "${base_path}/reports/cpp_ctest_report.xml" \
                 || echo "ctest reported failures, continuing for artifact collection"
 

@@ -142,8 +142,9 @@ test-job:
     fi
 
     # --- C++ GTest section via ctest ---
-    cd ${base_path}/build/Libra
-    ctest --output-on-failure \
+    # Tests are registered by the inner Apps ExternalProject (BINARY_DIR=build/Libra/apps)
+    ctest --test-dir ${base_path}/build/Libra/apps \
+          --output-on-failure \
           --output-junit "${base_path}/reports/cpp_ctest_report.xml" \
           || echo "ctest reported failures, continuing for artifact collection"
 
