@@ -42,7 +42,7 @@ does not require an RA-specific software stack and dependencies.
 
 ### Recent results
 
-**[Deep Imaging at a National Scale](https://science.nrao.edu/enews/17.3/index.shtml#deepimaging)** : Using the set of [LibRA apps](#currently-available-apps) as path-finder for ngVLA-scale processing, we deployed the computationally intensive components of the [Algorithm Architecture](doc/AlgoArch/README.md) (paper in preparation) on a scale about 10x larger (O(100) GPUs) than what has been attempted so far at NRAO (O(10) GPUs) to investigate the operational and computational challenges of distributed computing at this scale. For this, in collaboration with the Center for High Throughput Computing (CHTC, Univ. of Wisconsin-Madison, WI), we used a nation-wide network of computers in the [Open Science Pool (OSPool)](https://osg-htc.org/services/open_science_pool.html), [U.S. National Science Foundation's Pathways for Advancing Throughput computing (PATh)](https://path-cc.io/), [San Diego Supercomputer Center (SDSC)](https://www.sdsc.edu/) at the Univ. of California San Diego and the [National Research Platform (NRP)](https://nationalresearchplatform.org/).  **This produced the [deepest image ever made with the VLA](https://science.nrao.edu/enews/17.3/images/HUDF_SBand_3.png), and in the RA community world-wide of the Hubble Ultra-Deep Field (HUDF) achieving a noise floor of 1 microJy/beam in the radio band.**
+**[Deep Imaging at a National Scale](https://science.nrao.edu/enews/17.3/index.shtml#deepimaging)** : Using the set of [LibRA apps](#currently-available-apps) as path-finder for ngVLA-scale processing, we deployed the computationally intensive components of the [Algorithm Architecture](doc/AlgoArch/README.md) (Bhatnagar et al., AJ 170:246, 2025) on a scale about 10x larger (O(100) GPUs) than what has been attempted so far at NRAO (O(10) GPUs) to investigate the operational and computational challenges of distributed computing at this scale. For this, in collaboration with the Center for High Throughput Computing (CHTC, Univ. of Wisconsin-Madison, WI), we used a nation-wide network of computers in the [Open Science Pool (OSPool)](https://osg-htc.org/services/open_science_pool.html), [U.S. National Science Foundation's Pathways for Advancing Throughput computing (PATh)](https://path-cc.io/), [San Diego Supercomputer Center (SDSC)](https://www.sdsc.edu/) at the Univ. of California San Diego and the [National Research Platform (NRP)](https://nationalresearchplatform.org/).  **This produced the [deepest image ever made with the VLA](https://science.nrao.edu/enews/17.3/images/HUDF_SBand_3.png), and in the RA community world-wide of the Hubble Ultra-Deep Field (HUDF) achieving a noise floor of 1 microJy/beam in the radio band.**
 
 
 ### The repository contains
@@ -102,12 +102,13 @@ Standalone applications (apps) give access to algorithms via commandline options
 - [ ] [`hummbee`](apps/src) : An application to derive a model of the signal in the raw image (e.g., made using `roadrunner`).  This is a.k.a. the `minor cycle` in RA.
 - [ ] [`coyote`](apps/src) : An application to build the CF Cache used as input to the `roadrunner` application.
 - [ ] [`acme`](apps/src) : An application to print/verify image statistics.
-
-- [ ] [`libra_htclean.sh`](frameworks/htclean) : A script that implements the [Algorithm Architecture](doc/AlgoArch/README.md) and uses the [apps](#currently-available-apps) as algorithmic components for imaging.  This implements the iterative image reconstruction technique widely used in RA for derivative and model update calculations (the `major cycle` and `minor cycle` respectively).  The execution graph can be deployed as a DAG on a CPU, a GPU, or on a cluster of CPUs/GPUs using the framework in `template_PATh`.  This has been used to deploy the parallel imaging execution graph on a local cluster, and on the [PATh](https://path-cc.io/about/) and [OSG](https://osg-htc.org/) clusters.  A variant that uses LibRA [apps](#currently-available-apps) as components has also been used for a prototype deployment on AWS.
-
 - [ ] [`tableinfo`](apps/src) : An application to print summary of the data (MS) and images (information from image headers).
 - [ ] [`mssplit`](apps/src) : An application to split a data (in the MS format) along various axis of the data domain.  The resulting data can be written as a deep-copy, or as a reference to the input data base.
 - [ ] [`subms`](apps/src) : Functionally the same as `mssplit` but additionally re-normalizes the sub-tables in the resulting data base.
+
+#### Frameworks
+
+- [ ] [`libra_htclean.sh`](frameworks/htclean) : A script that implements the [Algorithm Architecture](doc/AlgoArch/README.md) and uses the [apps](#currently-available-apps) as algorithmic components for imaging.  This implements the iterative image reconstruction technique widely used in RA for derivative and model update calculations (the `major cycle` and `minor cycle` respectively).  The execution graph can be deployed as a DAG on a CPU, a GPU, or on a cluster of CPUs/GPUs using the framework in `template_PATh`.  This has been used to deploy the parallel imaging execution graph on a local cluster, and on the [PATh](https://path-cc.io/about/) and [OSG](https://osg-htc.org/) clusters.  A variant that uses LibRA [apps](#currently-available-apps) as components has also been used for a prototype deployment on AWS.
 
 ## System requirements
 The following come default with RHEL8 or similar systems:
@@ -116,7 +117,7 @@ The following come default with RHEL8 or similar systems:
 - [ ] cmake 3.x or later
 - [ ] git 2.0 or later, gcc-gfortran gtest-devel ccache
       
-The `ccache` dependency can be dropped by setting `-DUseCcache=0` in the `casacore-cmake` target in `makefile.libra`.
+The `ccache` dependency can be dropped by passing `-DUSE_CCACHE=OFF` at cmake configure time. The cmake-based build is the supported route.
 
 The following list of packages need to be installed. Following is a typical command to install:
 
@@ -157,7 +158,8 @@ make
 
 The binary [standalone
 applications](#currently-available-apps) will be installed
-in ```libra/install/bin``` directory.
+in ```libra/install/bin``` by default. Override with
+```-DCMAKE_INSTALL_PREFIX=<prefix>``` at cmake configure time.
 
 ### Running the tests
 
@@ -194,7 +196,7 @@ make Kokkos_CUDA_ARCH=<ARCH_NAME from Kokkos web page https://kokkos.github.io/k
 
 The binary [standalone
 applications](#currently-available-apps) will be installed
-in ```libra/install/linux_64b/bin``` directory.
+in ```libra/install/bin``` directory.
 
 ##### Setting up the various variables in `makefile.libra`
 
@@ -206,7 +208,7 @@ in ```libra/install/linux_64b/bin``` directory.
 - [ ] `{CASA,CASACORE_DATA,FFTW,KOKKOS,HPG,PARAFEED,SAKURA}_REPOS`: URL for the repository of the various packages.
 - [ ] `PATH`: Set this to include the location of the local CUDA installation.  To build the `LibRA` system a GPU is not necessary, but a CUDA install is necessary.
 - [ ] `NCORES`: The number of CPU cores used for compiling.  It is used as `make -j ${NCORES}` in the various `build` targets.
-- [ ] `Apps_BUILD_TESTS`: Whether to build apps unit tests. Default is `OFF`. If it is set to `ON`, run the following to run unit tests locally.
+- [ ] `BUILD_TESTING`: Whether to build the C++ test suite. Default is `OFF`. The legacy flag `Apps_BUILD_TESTS=ON` is still honored as an alias. If set to `ON`, run the following to run unit tests locally.
 
 ```
 ctest --test-dir build/Libra -R '^test_' --output-on-failure
