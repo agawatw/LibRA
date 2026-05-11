@@ -148,8 +148,9 @@ cd build
 # See also CUDA GPUs -- Compute Capability at https://developer.nvidia.com/cuda-gpus.
 # Default behaviour is to determined CUDA ARCH automatically.  
 #
-# Default behaviour is Apps_BUILD_TESTS=OFF
-cmake -DKokkos_CUDA_ARCH_NAME=<ARCH_NAME> -DApps_BUILD_TESTS=OFF .. # The tests are built when the flag is turned on
+# Default behaviour is BUILD_TESTING=OFF. The legacy flag Apps_BUILD_TESTS
+# is still honored as an alias.
+cmake -DKokkos_CUDA_ARCH_NAME=<ARCH_NAME> -DBUILD_TESTING=OFF .. # set BUILD_TESTING=ON to build the test suite
 # It is set to run "make -j NCORES" internally, so it is important to just run "make" below to prevent parallelizing make twice. 
 make
 ```
@@ -157,6 +158,23 @@ make
 The binary [standalone
 applications](#currently-available-apps) will be installed
 in ```libra/install/bin``` directory.
+
+### Running the tests
+
+Configure with testing enabled, then build as above:
+
+```
+cmake -DKokkos_CUDA_ARCH_NAME=<ARCH_NAME> -DBUILD_TESTING=ON ..
+make
+```
+
+Run the C++ test suite via CTest from the top of the build tree:
+
+```
+ctest --test-dir build/Libra -R '^test_' --output-on-failure
+```
+
+The `-R '^test_'` filter restricts execution to the gtest-based suite and skips legacy tests.
 
 ### Makefile Based Building
 
@@ -191,8 +209,7 @@ in ```libra/install/linux_64b/bin``` directory.
 - [ ] `Apps_BUILD_TESTS`: Whether to build apps unit tests. Default is `OFF`. If it is set to `ON`, run the following to run unit tests locally.
 
 ```
-cd LibRA/apps/src/tests
-./../../../build/Libra/apps/src/tests/LibRATests
+ctest --test-dir build/Libra -R '^test_' --output-on-failure
 ```
 
 ## Resources
