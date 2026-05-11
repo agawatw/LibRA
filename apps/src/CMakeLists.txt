@@ -6,7 +6,6 @@ find_package(parafeed REQUIRED)
 find_package(pybind11 REQUIRED)
 
 if(BUILD_TESTING)
-  enable_testing()
   find_package(GTest REQUIRED)
 endif()
 
