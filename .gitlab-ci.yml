@@ -142,8 +142,12 @@ test-job:
     fi
 
     # --- C++ GTest section via ctest ---
-    # Tests are registered by the inner Apps ExternalProject (BINARY_DIR=build/Libra/apps)
-    ctest --test-dir ${base_path}/build/Libra/apps \
+    # The top-level CMakeLists.txt emits build/Libra/CTestTestfile.cmake that
+    # recurses into both src/ and apps/ ExternalProject build trees.
+    # -R '^test_' picks up only the new-style gtest binaries (test_dale,
+    # test_libracoretypes, ...) and skips the legacy t<Name> tests in src/.
+    ctest --test-dir ${base_path}/build/Libra \
+          -R '^test_' \
           --output-on-failure \
           --output-junit "${base_path}/reports/cpp_ctest_report.xml" \
           || echo "ctest reported failures, continuing for artifact collection"
