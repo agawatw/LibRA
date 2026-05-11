@@ -25,7 +25,7 @@ provided to access the algorithms from C++ and Python, or as an
 end-user via [standalone applications](#currently-available-apps) to conveniently
 configure and execute the algorithms from a Linux shell.  The
 low-level algorithms exposed by these interfaces are factorized to be
-used as components in a higher-level _generalized_ **[Alogrithm Architecture (S. Bhatnagar, U. Rau, M. Hsieh, J. Kern, and R. Xue, AJ 170 246, 2025)](https://doi.org/10.3847/1538-3881/adfe61).**
+used as components in a higher-level _generalized_ **[Algorithm Architecture (S. Bhatnagar, U. Rau, M. Hsieh, J. Kern, and R. Xue, AJ 170 246, 2025)](https://doi.org/10.3847/1538-3881/adfe61).**
 
 **[This page](doc/AlgoArch/README.md) is meant for a condensed description of the architecture.  This page is still under construction.**
 
@@ -38,7 +38,7 @@ that rely on indirect imaging such as Magnetic Resonance Imaging (MRI)
 and Ultrasound imaging.  To make RA algorithms available for
 application in such fields and enable cross-discipline R&D, the API to
 the library is based on C++ STL for portability and wider use that
-does not required RA-specific software stack and dependencies.
+does not require an RA-specific software stack and dependencies.
 
 ### Recent results
 
@@ -71,7 +71,7 @@ dependency graph (compared to the [CASA software stack and
 dependencies](doc/figures/RRStack-CASA-Corrected-Modified.png)). A suite of
 [standalone applications](#currently-available-apps) are
 also available which can be built as relocatable Linux executable
-(this may also be possible for MacOS, but we haven't test it).
+(this may also be possible for MacOS, but we haven't tested it).
 
 The resulting software stack is shown below.  Figure on the left/top shows
 our current software stack where the RA Algorithms layer is built on
@@ -98,7 +98,7 @@ Standalone applications (apps) give access to algorithms via commandline options
 #### Currently available Apps
 - [ ] [`roadrunner`](apps/src) : An application to transform the data in a Measurement Set (MS) to an image.  This can be deployed on a single CPU core, or on a GPU.  This is a.k.a. as the `major cycle` in RA.
 - [ ] [`dale`](apps/src) : An application to apply normalization to the `weight`, `psf`, `residual` and `model` images created with `roadrunner` and `hummbee`, and compute the primary beam.
-- [ ] [`chip`](apps/src) : An application to accumulate mutiple images onto an output image (a.k.a. the "gather" opreation in CS-speak).
+- [ ] [`chip`](apps/src) : An application to accumulate multiple images onto an output image (a.k.a. the "gather" operation in CS-speak).
 - [ ] [`hummbee`](apps/src) : An application to derive a model of the signal in the raw image (e.g., made using `roadrunner`).  This is a.k.a. the `minor cycle` in RA.
 - [ ] [`coyote`](apps/src) : An application to build the CF Cache used as input to the `roadrunner` application.
 - [ ] [`acme`](apps/src) : An application to print/verify image statistics.
@@ -146,7 +146,7 @@ mkdir build
 cd build
 # A list of Kokkos CUDA ARCH_NAME can be found at Kokkos web page https://kokkos.github.io/kokkos-core-wiki/keywords.html#keywords-arch
 # See also CUDA GPUs -- Compute Capability at https://developer.nvidia.com/cuda-gpus.
-# Default behaviour is to determined CUDA ARCH automatically.  
+# Default behaviour is to determine CUDA ARCH automatically.  
 #
 # Default behaviour is BUILD_TESTING=OFF. The legacy flag Apps_BUILD_TESTS
 # is still honored as an alias.
@@ -193,7 +193,7 @@ make Kokkos_CUDA_ARCH=<ARCH_NAME from Kokkos web page https://kokkos.github.io/k
 ```
 
 The binary [standalone
-applications](#currently-available-apps) will be install
+applications](#currently-available-apps) will be installed
 in ```libra/install/linux_64b/bin``` directory.
 
 ##### Setting up the various variables in `makefile.libra`
