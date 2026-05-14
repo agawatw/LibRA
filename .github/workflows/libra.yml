@@ -52,13 +52,17 @@ jobs:
           base_path=$PWD
           export LD_LIBRARY_PATH=${base_path}/install/lib:$LD_LIBRARY_PATH
           mkdir -p ${base_path}/reports
-          # Tests are registered by the inner Apps ExternalProject (BINARY_DIR=build/Libra/apps)
-          ctest --test-dir ${base_path}/build/Libra/apps \
+          # Top-level build/Libra/CTestTestfile.cmake recurses into both src/ and
+          # apps/ ExternalProject build trees. -R '^test_' picks up the new-style
+          # gtest binaries (test_dale, test_libracoretypes, ...) and skips the
+          # legacy t<Name> tests in src/.
+          ctest --test-dir ${base_path}/build/Libra \
+                -R '^test_' \
                 --output-on-failure \
-                --output-junit "${base_path}/reports/cpp_ctest_report.xml" \
-                || echo "ctest reported failures, continuing for artifact collection"
+                --output-junit "${base_path}/reports/cpp_ctest_report.xml"
 
       - name: Upload test report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Test Report

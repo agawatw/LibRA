@@ -38,7 +38,6 @@ if(BUILD_TESTING)
   find_package(GTest REQUIRED)
   add_executable(test_${APP_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/test_${APP_NAME}.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_htclean.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/${APP_NAME}_cl_interface.cc)
   target_include_directories(test_${APP_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
@@ -49,6 +48,22 @@ if(BUILD_TESTING)
   add_test(NAME test_${APP_NAME} COMMAND test_${APP_NAME}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src/tests)
   install(TARGETS test_${APP_NAME}
+    RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/bin/tests")
+
+  add_executable(test_htclean
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_htclean.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/${APP_NAME}_cl_interface.cc)
+  target_include_directories(test_htclean PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/tests)
+  target_compile_definitions(test_htclean PRIVATE
+    HUMMBEE_LIBRARY_BUILD
+    LIBRA_INSTALL_BIN="${CMAKE_INSTALL_PREFIX}/bin")
+  target_link_libraries(test_htclean
+    GTest::gtest_main stdc++fs ${APP_NAME}_lib)
+  add_test(NAME test_htclean COMMAND test_htclean
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src/tests)
+  install(TARGETS test_htclean
     RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/bin/tests")
   if(Apps_BUILD_TESTS_PYTHON)
     find_program(PYTHON_EXECUTABLE python)

@@ -149,12 +149,11 @@ test-job:
     ctest --test-dir ${base_path}/build/Libra \
           -R '^test_' \
           --output-on-failure \
-          --output-junit "${base_path}/reports/cpp_ctest_report.xml" \
-          || echo "ctest reported failures, continuing for artifact collection"
+          --output-junit "${base_path}/reports/cpp_ctest_report.xml"
 
     # --- Python pytest section ---
     cd "${base_path}/apps/src/tests/"
-    pytest ${base_path}/libra-python/tests --junitxml=${base_path}/reports/pytest_report.xml -v || echo "Pytest failed, but continuing for CI artifact collection"
+    pytest ${base_path}/libra-python/tests --junitxml=${base_path}/reports/pytest_report.xml -v
   artifacts:
     when: always
     reports:
