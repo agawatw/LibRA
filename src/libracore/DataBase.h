@@ -32,6 +32,8 @@
 #include <msvis/MSVis/VisBuffer2.h>
 #include <msvis/MSVis/ViFrequencySelection.h>
 #include <casacore/ms/MeasurementSets/MeasurementSet.h>
+using namespace casa;
+using namespace casa::refim;
 using namespace casacore;
 using namespace std;
 

@@ -30,15 +30,22 @@
 #include <casacore/images/Images/ImageInterface.h>
 #include <casacore/images/Images/PagedImage.h>
 #include <casacore/images/Images/TempImage.h>
-#include <casacore/tables/TaQL/ExprNode.h>
+// #include <casacore/tables/TaQL/ExprNode.h>
 
-#include <synthesis/TransformMachines2/FTMachine.h>
-#include <synthesis/TransformMachines2/AWVisResampler.h>
+// #include <synthesis/TransformMachines2/FTMachine.h>
+// #include <synthesis/TransformMachines2/AWVisResampler.h>
+#include <synthesis/TransformMachines2/PolOuterProduct.h>
 #include <synthesis/TransformMachines2/CFStore2.h>
 #include <synthesis/TransformMachines2/AWVisResamplerHPG.h>
 #include <synthesis/TransformMachines2/AWProjectWBFTHPG.h>
-#include <synthesis/TransformMachines2/MakeCFArray.h>
-#include <synthesis/TransformMachines2/ThreadCoordinator.h>
+#include <DataBase.h>
+//#include <synthesis/TransformMachines2/MakeCFArray.h>
+//#include <synthesis/TransformMachines2/ThreadCoordinator.h>
+
+using namespace casa;
+using namespace casa::refim;
+using namespace casacore;
+using namespace std;
 
 void makeCFS_inmemory(CountedPtr<casa::refim::CFStore2> cfs2_l,
 		      CountedPtr<casa::refim::CFStore2> cfswt2_l,
@@ -51,5 +58,9 @@ void fillCFC_inmemory(DataBase& db,
 		      refim::ConvolutionFunction>& awcf_l,
 		      const TempImage<Complex>& cgrid,
 		      const Vector<double>& uvScale,
-		      const Vector<double>& uvOffset);
+		      const Vector<double>& uvOffset,
+		      string& mType,
+		      string& stokes="I"
+		      );
+
 #endif 
