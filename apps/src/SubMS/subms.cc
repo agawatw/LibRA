@@ -23,73 +23,84 @@
 // # $Id$
 
 #include <subms.h>
-//
-//-------------------------------------------------------------------------
-//
-//
-//-------------------------------------------------------------------------
+#include <filesystem>
 
-void SubMS_func(const string& MSNBuf, const string& OutMSBuf,
-		const string& WhichColStr, const bool& deepCopy,
-		const string& fieldStr,const string& timeStr,
-		const string& spwStr, const string& baselineStr,
-		const string& scanStr, const string& arrayStr,
-		const string& uvdistStr,const string& taqlStr,
-		const float integ)
+void SubMS_func(const string& MSNBuf,      const string& OutMSBuf,
+                const string& WhichColStr,
+                const string& fieldStr,    const string& timeStr,
+                const string& spwStr,      const string& baselineStr,
+                const string& scanStr,     const string& arrayStr,
+                const string& uvdistStr,   const string& taqlStr,
+                const string& corrStr,     const string& intentStr,
+                const string& obsStr,      const string& combineStr,
+                const double  integ,
+                const int     chanStep,
+                const bool    overwrite,
+                const bool    verbose)
 {
-  //
-  //---------------------------------------------------
-  //
-  //  MSSelection msSelection;
-  // try
-    {
-      //MS ms(MSNBuf,Table::Update),selectedMS(ms);
-      MeasurementSet ms(MSNBuf,TableLock(TableLock::AutoNoReadLocking)),selectedMS(ms);
+    if (MSNBuf.empty())
+        throw AipsError("SubMS: input MS name not set");
+    if (OutMSBuf.empty())
+        throw AipsError("SubMS: output MS name not set");
+    if (chanStep < 1)
+        throw AipsError("SubMS: chanstep must be >= 1");
 
-      if (OutMSBuf != "")
-	{
-	  //
-	  // Damn CASA::Strings!
-	  //
-	  String OutMSName(OutMSBuf), WhichCol(WhichColStr);
-	  //	    SubMS splitter(selectedMS);
-	  //
-	  // SubMS class is not msselection compliant (it's a strange
-	  // mix of msselection and selection-by-hand)!
-	  //
-	  SubMS splitter(ms);
-	  Vector<int> nchan(1,10), start(1,0), step(1,1);
-	  String CspwStr(spwStr), CfieldStr(fieldStr), CbaselineStr(baselineStr),
-	    CscanStr(scanStr), CuvdistStr(uvdistStr), CtaqlStr(taqlStr), CtimeStr(timeStr);
-	  splitter.setmsselect(CspwStr, CfieldStr, CbaselineStr, CscanStr, CuvdistStr,
-			       CtaqlStr);//, nchan,start, step);
-
-	  splitter.selectTime(integ,CtimeStr);
-	  splitter.makeSubMS(OutMSName, WhichCol);
-	}
-      //      cerr << "Number of selected rows: " << selectedMS.nrow() << endl;
+    // Overwrite guard
+    if (std::filesystem::exists(OutMSBuf)) {
+        if (!overwrite)
+            throw AipsError("SubMS: output MS already exists: " + OutMSBuf
+                            + " -- set overwrite=true to replace it");
+        std::filesystem::remove_all(OutMSBuf);
     }
-  // catch (clError& x)
-  //   {
-  //     x << x.what() << endl;
-  //     restartUI=true;
-  //   }
-  // catch (MSSelectionError& x)
-  //   {
-  //     cerr << "###MSSelectionError: " << x.getMesg() << endl;
-  //     restartUI=true;
-  //   }
-  //
-  // Catch any exception thrown by AIPS++ libs.  Do your cleanup here
-  // before returning to the UI (if you choose to).  Without this, all
-  // exceptions (AIPS++ or otherwise) are caught in the default
-  // exception handler (which is installed by the CLLIB as the
-  // clDefaultErrorHandler).
-  //
-  // catch (AipsError& x)
-  //   {
-  //     cerr << "###AipsError: " << x.getMesg() << endl;
-  //     restartUI=true;
-  //   }
-  // if (restartUI) RestartUI(RENTER);
+
+    if (verbose) {
+        LogIO os(LogOrigin("SubMS", "SubMS_func"));
+        os << LogIO::NORMAL
+           << "SubMS selection summary:" << endl
+           << "  vis        = " << MSNBuf       << endl
+           << "  outms      = " << OutMSBuf     << endl
+           << "  datacolumn = " << WhichColStr  << endl
+           << "  field      = " << fieldStr     << endl
+           << "  spw        = " << spwStr       << endl
+           << "  time       = " << timeStr      << endl
+           << "  baseline   = " << baselineStr  << endl
+           << "  scan       = " << scanStr      << endl
+           << "  array      = " << arrayStr     << endl
+           << "  uvdist     = " << uvdistStr    << endl
+           << "  taql       = " << taqlStr      << endl
+           << "  correlation= " << corrStr      << endl
+           << "  intent     = " << intentStr    << endl
+           << "  observation= " << obsStr       << endl
+           << "  combine    = " << combineStr   << endl
+           << "  integ      = " << integ        << endl
+           << "  chanstep   = " << chanStep     << endl
+           << LogIO::POST;
+    }
+
+    MeasurementSet ms(MSNBuf, TableLock(TableLock::AutoNoReadLocking));
+
+    SubMS splitter(ms);
+
+    String CspwStr(spwStr),       CfieldStr(fieldStr),
+           CbaselineStr(baselineStr), CscanStr(scanStr),
+           CuvdistStr(uvdistStr), CtaqlStr(taqlStr),
+           CarrayStr(arrayStr),   CcorrStr(corrStr),
+           CintentStr(intentStr), CobsStr(obsStr);
+
+    Bool ok = splitter.setmsselect(CspwStr, CfieldStr, CbaselineStr, CscanStr,
+                                   CuvdistStr, CtaqlStr,
+                                   Vector<Int>(1, chanStep),
+                                   CarrayStr, CcorrStr, CintentStr, CobsStr);
+
+    if (!ok)
+        throw AipsError("SubMS: setmsselect failed -- check selection strings");
+
+    String CtimeStr(timeStr);
+    splitter.selectTime(static_cast<Double>(integ), CtimeStr);
+
+    String OutMSName(OutMSBuf), WhichCol(WhichColStr);
+    String CcombineStr(combineStr);
+
+    if (!splitter.makeSubMS(OutMSName, WhichCol, Vector<Int>(1, 0), CcombineStr))
+        throw AipsError("SubMS: makeSubMS failed writing " + OutMSBuf);
 }

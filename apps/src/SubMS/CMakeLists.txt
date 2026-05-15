@@ -41,7 +41,9 @@ if(BUILD_TESTING)
   target_include_directories(test_${APP_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/tests)
-  target_compile_definitions(test_${APP_NAME} PRIVATE SUBMS_LIBRARY_BUILD)
+  target_compile_definitions(test_${APP_NAME} PRIVATE
+    SUBMS_LIBRARY_BUILD
+    SUBMS_TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/src/tests")
   target_link_libraries(test_${APP_NAME}
     GTest::gtest_main stdc++fs ${APP_NAME}_lib)
   add_test(NAME test_${APP_NAME} COMMAND test_${APP_NAME}
