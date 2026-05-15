@@ -24,6 +24,7 @@
 //#
 //# $Id$
 
+#include <CFCacheHelper.h>
 //
 //--------------------------------------------------------------------------
 //
@@ -66,8 +67,8 @@ void makeCFS_inmemory(CountedPtr<casa::refim::CFStore2> cfs2_l,
   // CF (the IsFilled=1 entry in CFS*/miscInfo.rec) will be
   // left untouched.
   //
-  Vector<Double> dummyUVScale;
-  Matrix<Double> dummyvbFreqSel;
+  Vector<double> dummyUVScale,uvOffset;
+  Matrix<double> dummyvbFreqSel;
   AWConvFunc::makeConvFunction2(cfCacheName,
 				dummyUVScale, uvOffset,	dummyvbFreqSel,
 				*cfs2_l,*cfswt2_l,
@@ -83,10 +84,12 @@ void makeCFS_inmemory(CountedPtr<casa::refim::CFStore2> cfs2_l,
 
 void fillCFC_inmemory(DataBase& db,
 		      //CountedPtr<refim::ConvolutionFunction>& awcf_l
-		      refim::ConvolutionFunction>& awcf_l,
+		      refim::ConvolutionFunction& awcf_l,
 		      const TempImage<Complex>& cgrid,
 		      const Vector<double>& uvScale,
-		      const Vector<double>& uvOffset)
+		      const Vector<double>& uvOffset,
+		      string& mType,
+		      string& stokes)
 {
   //-------------------------------------------------------------------------------------------------
   // Instantiate the PolOuterProduce object which encapsulates the
@@ -133,6 +136,7 @@ void fillCFC_inmemory(DataBase& db,
   // CFs) which is highly parallelizable and scales well.
   //
   Matrix<Double> vbFreqSelection ;
+  bool fillCF=true;
   awcf_l->makeConvFunction(cgrid , *(db.vb_l), nW,
 			   pop_p, pa, dpa, uvScale, uvOffset,
 			   vbFreqSelection,
@@ -150,6 +154,7 @@ void fillCFC_inmemory(DataBase& db,
   // true (it is false in the default interface).
   // cfs2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","", Quantity(pa,"rad"),Quantity(dpa,"rad"),0,0,true);
   // cfswt2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","WT",Quantity(pa,"rad"),Quantity(dpa,"rad"),0,0,true);
-  cfs2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","", true);
-  cfswt2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","WT",true);
+
+  // cfs2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","", true);
+  // cfswt2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","WT",true);
 }
