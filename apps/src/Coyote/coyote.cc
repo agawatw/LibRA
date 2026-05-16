@@ -217,9 +217,10 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	}
       catch (CFSupportZero &e)
 	{
-	  // Ignore the "CFS is empty" exception.  This exception should
-	  // reach here since it is resolved in AWCF.  But leaving the
-	  // code here in case there is a bug in the resolution code.
+	  // Ignore the "CFS is empty" exception.  This exception
+	  // should not reach here since it is resolved in AWCF.  But
+	  // leaving the code here in case there is a bug in the
+	  // resolution code.
 	  cerr << e.what() << endl;
 	}
       CountedPtr<casa::refim::CFStore2> cfs2_l, cfswt2_l;
@@ -288,7 +289,7 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  //	  cgrid.table().markForDelete();
 	  
 	  //-------------------------------------------------------------------------------------------------
-	  makeCFS_inmemory(db,
+	  libracore::makeCFS_inmemory(db,
 			   cfs2_l,
 			   cfswt2_l,
 			   *awcf_l,
@@ -377,7 +378,7 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  //
 	  Vector<Double> dummyUVScale;
 	  Matrix<Double> dummyvbFreqSel;
-	  fillCFS_inmemory(cfCacheName,
+	  libracore::fillCFS_inmemory(cfCacheName,
 			   cfs2_l, cfswt2_l, uvOffset,
 			   psTerm, aTerm, conjBeams);
 
