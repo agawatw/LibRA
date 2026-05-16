@@ -26,20 +26,13 @@
 #ifndef LIBRACORE_CFCACHEHELPER_H
 #define LIBRACORE_CFCACHEHELPER_H
 #include <casacore/measures/Measures/Stokes.h>
-#include <casacore/coordinates/Coordinates/CoordinateSystem.h>
 #include <casacore/images/Images/ImageInterface.h>
-#include <casacore/images/Images/PagedImage.h>
 #include <casacore/images/Images/TempImage.h>
 // #include <casacore/tables/TaQL/ExprNode.h>
 
 #include <synthesis/TransformMachines2/PolOuterProduct.h>
 #include <synthesis/TransformMachines2/CFStore2.h>
 #include <synthesis/TransformMachines2/AWConvFunc.h>
-// #include <synthesis/TransformMachines2/FTMachine.h>
-// #include <synthesis/TransformMachines2/AWVisResampler.h>
-// #include <synthesis/TransformMachines2/ConvolutionFunction.h>
-// #include <synthesis/TransformMachines2/AWVisResamplerHPG.h>
-// #include <synthesis/TransformMachines2/AWProjectWBFTHPG.h>
 #include <libracore/DataBase.h>
 
 using namespace casa;
@@ -47,40 +40,43 @@ using namespace casa::refim;
 using namespace casacore;
 using namespace std;
 
-//
-//--------------------------------------------------------------------------
-//
-CountedPtr<refim::PolOuterProduct>
-setPOP(vi::VisBuffer2 &vb2,
-       Vector<casacore::Stokes::StokesTypes> visPolMap,
-       Vector<int> polMap,
-       std::string &stokes,
-       std::string &mType);
-//
-//--------------------------------------------------------------------------
-//
-void fillCFS_inmemory(const string& cfCacheName,
-		      CountedPtr<casa::refim::CFStore2> cfs2_l,
-		      CountedPtr<casa::refim::CFStore2> cfswt2_l,
-		      Vector<double>& uvOffset,
-		      const bool& psTerm,
-		      const bool& aTerm,
-		      const bool& conjBeams);
-//
-//--------------------------------------------------------------------------
-//
-void makeCFS_inmemory(DataBase& db,
-		      CountedPtr<casa::refim::CFStore2> cfs2_l,
-		      CountedPtr<casa::refim::CFStore2> cfswt2_l,
-		      refim::ConvolutionFunction& awcf_l,
-		      const TempImage<Complex>& cgrid,
-		      int& nW,
-		      float& pa,
-		      float& dpa,
-		      const Vector<double>& uvScale,
-		      const Vector<double>& uvOffset,
-		      const string cfCacheName="",
-		      std::string stokes=std::string("I"),
-		      std::string mType="");
+namespace libracore
+{
+  //
+  //--------------------------------------------------------------------------
+  //
+  CountedPtr<refim::PolOuterProduct>
+  setPOP(vi::VisBuffer2 &vb2,
+	 Vector<casacore::Stokes::StokesTypes> visPolMap,
+	 Vector<int> polMap,
+	 std::string &stokes,
+	 std::string &mType);
+  //
+  //--------------------------------------------------------------------------
+  //
+  void fillCFS_inmemory(const string& cfCacheName,
+			CountedPtr<casa::refim::CFStore2> cfs2_l,
+			CountedPtr<casa::refim::CFStore2> cfswt2_l,
+			Vector<double>& uvOffset,
+			const bool& psTerm,
+			const bool& aTerm,
+			const bool& conjBeams);
+  //
+  //--------------------------------------------------------------------------
+  //
+  void makeCFS_inmemory(DataBase& db,
+			CountedPtr<casa::refim::CFStore2> cfs2_l,
+			CountedPtr<casa::refim::CFStore2> cfswt2_l,
+			refim::ConvolutionFunction& awcf_l,
+			const TempImage<Complex>& cgrid,
+			int& nW,
+			float& pa,
+			float& dpa,
+			const Vector<double>& uvScale,
+			const Vector<double>& uvOffset,
+			const string cfCacheName="",
+			std::string stokes=std::string("I"),
+			std::string mType="");
+};
 
 #endif 
