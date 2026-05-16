@@ -28,10 +28,11 @@
 //
 //--------------------------------------------------------------------------
 //
-CountedPtr<refim::PolOuterProduct> setPOP(vi::VisBuffer2 &vb2,
-					  Vector<casacore::Stokes::StokesTypes> visPolMap,
-					  Vector<int> polMap,
-					  std::string &stokes, std::string &mType)
+CountedPtr<refim::PolOuterProduct> 
+setPOP(vi::VisBuffer2 &vb2,
+       Vector<casacore::Stokes::StokesTypes> visPolMap,
+       Vector<int> polMap,
+       std::string &stokes, std::string &mType)
 {
   CountedPtr<refim::PolOuterProduct> pop_l = new PolOuterProduct;
   
@@ -52,9 +53,13 @@ CountedPtr<refim::PolOuterProduct> setPOP(vi::VisBuffer2 &vb2,
   
   return pop_l;
 }
-
-void makeCFS_inmemory(CountedPtr<casa::refim::CFStore2> cfs2_l,
+//
+//--------------------------------------------------------------------------
+//
+void fillCFS_inmemory(const string& cfCacheName,
+		      CountedPtr<casa::refim::CFStore2> cfs2_l,
 		      CountedPtr<casa::refim::CFStore2> cfswt2_l,
+		      Vector<double>& uvOffset,
 		      const bool& psTerm,
 		      const bool& aTerm,
 		      const bool& conjBeams)
@@ -67,10 +72,9 @@ void makeCFS_inmemory(CountedPtr<casa::refim::CFStore2> cfs2_l,
   // CF (the IsFilled=1 entry in CFS*/miscInfo.rec) will be
   // left untouched.
   //
-  Vector<double> dummyUVScale,uvOffset;
+  Vector<double> dummyUVScale;
   Matrix<double> dummyvbFreqSel;
-  // !!!!!!!!!!!!!!!! What should the cfCacheName be?!!!!!!!!!!!!!
-  string cfCacheName; 
+
   AWConvFunc::makeConvFunction2(cfCacheName,
 				dummyUVScale, uvOffset,	dummyvbFreqSel,
 				*cfs2_l,*cfswt2_l,
@@ -83,8 +87,10 @@ void makeCFS_inmemory(CountedPtr<casa::refim::CFStore2> cfs2_l,
   memUsed = (Int)(memUsed/1024.0+0.5);
   if (memUsed > 1024) {memUsed /=1024; unit=" MB";}
 }
-
-void fillCFC_inmemory(DataBase& db,
+//
+//--------------------------------------------------------------------------
+//
+void makeCFS_inmemory(DataBase& db,
 		      //CountedPtr<refim::ConvolutionFunction>& awcf_l
 		      CountedPtr<casa::refim::CFStore2> cfs2_l,
 		      CountedPtr<casa::refim::CFStore2> cfswt2_l,
@@ -93,8 +99,9 @@ void fillCFC_inmemory(DataBase& db,
 		      int& nW, float& pa, float& dpa,
 		      const Vector<double>& uvScale,
 		      const Vector<double>& uvOffset,
-		      std::string mType,
-		      std::string stokes)
+		      const string cfCacheName,
+		      std::string stokes,
+		      std::string mType)
 {
   //-------------------------------------------------------------------------------------------------
   // Instantiate the PolOuterProduce object which encapsulates the
@@ -160,6 +167,11 @@ void fillCFC_inmemory(DataBase& db,
   // cfs2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","", Quantity(pa,"rad"),Quantity(dpa,"rad"),0,0,true);
   // cfswt2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","WT",Quantity(pa,"rad"),Quantity(dpa,"rad"),0,0,true);
 
-  // cfs2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","", true);
-  // cfswt2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","WT",true);
+  if (!cfCacheName.empty())
+    {
+      // cfs2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","", true);
+      // cfswt2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","WT",true);
+      cfs2_l->makePersistent(cfCacheName.c_str(),"","", true);
+      cfswt2_l->makePersistent(cfCacheName.c_str(),"","WT",true);
+    }
 }
