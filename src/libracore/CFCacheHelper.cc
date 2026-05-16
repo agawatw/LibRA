@@ -69,6 +69,8 @@ void makeCFS_inmemory(CountedPtr<casa::refim::CFStore2> cfs2_l,
   //
   Vector<double> dummyUVScale,uvOffset;
   Matrix<double> dummyvbFreqSel;
+  // !!!!!!!!!!!!!!!! What should the cfCacheName be?!!!!!!!!!!!!!
+  string cfCacheName; 
   AWConvFunc::makeConvFunction2(cfCacheName,
 				dummyUVScale, uvOffset,	dummyvbFreqSel,
 				*cfs2_l,*cfswt2_l,
@@ -84,12 +86,15 @@ void makeCFS_inmemory(CountedPtr<casa::refim::CFStore2> cfs2_l,
 
 void fillCFC_inmemory(DataBase& db,
 		      //CountedPtr<refim::ConvolutionFunction>& awcf_l
+		      CountedPtr<casa::refim::CFStore2> cfs2_l,
+		      CountedPtr<casa::refim::CFStore2> cfswt2_l,
 		      refim::ConvolutionFunction& awcf_l,
 		      const TempImage<Complex>& cgrid,
+		      int& nW, float& pa, float& dpa,
 		      const Vector<double>& uvScale,
 		      const Vector<double>& uvOffset,
-		      string& mType,
-		      string& stokes)
+		      std::string mType,
+		      std::string stokes)
 {
   //-------------------------------------------------------------------------------------------------
   // Instantiate the PolOuterProduce object which encapsulates the
@@ -137,11 +142,11 @@ void fillCFC_inmemory(DataBase& db,
   //
   Matrix<Double> vbFreqSelection ;
   bool fillCF=true;
-  awcf_l->makeConvFunction(cgrid , *(db.vb_l), nW,
-			   pop_p, pa, dpa, uvScale, uvOffset,
-			   vbFreqSelection,
-			   *cfs2_l, *cfswt2_l,
-			   fillCF);
+  awcf_l.makeConvFunction(cgrid , *(db.vb_l), nW,
+			  pop_p, pa, dpa, uvScale, uvOffset,
+			  vbFreqSelection,
+			  *cfs2_l, *cfswt2_l,
+			  fillCF);
   //
   // AWConvFunc::makeConvFunction() does not make the memory
   // model (CFStore) persistent.  So save the contents of the
