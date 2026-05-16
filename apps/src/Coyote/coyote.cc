@@ -376,12 +376,12 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  // CF (the IsFilled=1 entry in CFS*/miscInfo.rec) will be
 	  // left untouched.
 	  //
-	  Vector<Double> dummyUVScale;
-	  Matrix<Double> dummyvbFreqSel;
 	  libracore::fillCFS_inmemory(cfCacheName,
 			   cfs2_l, cfswt2_l, uvOffset,
 			   psTerm, aTerm, conjBeams);
 
+	  // Vector<Double> dummyUVScale;
+	  // Matrix<Double> dummyvbFreqSel;
 	  // AWConvFunc::makeConvFunction2(cfCacheName,
 	  // 				dummyUVScale, uvOffset,	dummyvbFreqSel,
 	  // 				*cfs2_l,*cfswt2_l,

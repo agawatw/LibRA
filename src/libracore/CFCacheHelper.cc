@@ -25,7 +25,7 @@
 //# $Id$
 
 #include <casacore/coordinates/Coordinates/CoordinateSystem.h>
-#include <CFCacheHelper.h>
+//#include <CFCacheHelper.h>
 //
 //--------------------------------------------------------------------------
 //
