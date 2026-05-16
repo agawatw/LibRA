@@ -32,37 +32,55 @@
 #include <casacore/images/Images/TempImage.h>
 // #include <casacore/tables/TaQL/ExprNode.h>
 
-// #include <synthesis/TransformMachines2/FTMachine.h>
-// #include <synthesis/TransformMachines2/AWVisResampler.h>
 #include <synthesis/TransformMachines2/PolOuterProduct.h>
 #include <synthesis/TransformMachines2/CFStore2.h>
-#include <synthesis/TransformMachines2/AWVisResamplerHPG.h>
-#include <synthesis/TransformMachines2/AWProjectWBFTHPG.h>
-#include <DataBase.h>
-//#include <synthesis/TransformMachines2/MakeCFArray.h>
-//#include <synthesis/TransformMachines2/ThreadCoordinator.h>
+#include <synthesis/TransformMachines2/AWConvFunc.h>
+// #include <synthesis/TransformMachines2/FTMachine.h>
+// #include <synthesis/TransformMachines2/AWVisResampler.h>
+// #include <synthesis/TransformMachines2/ConvolutionFunction.h>
+// #include <synthesis/TransformMachines2/AWVisResamplerHPG.h>
+// #include <synthesis/TransformMachines2/AWProjectWBFTHPG.h>
+#include <libracore/DataBase.h>
 
 using namespace casa;
 using namespace casa::refim;
 using namespace casacore;
 using namespace std;
 
-void makeCFS_inmemory(CountedPtr<casa::refim::CFStore2> cfs2_l,
+//
+//--------------------------------------------------------------------------
+//
+CountedPtr<refim::PolOuterProduct>
+setPOP(vi::VisBuffer2 &vb2,
+       Vector<casacore::Stokes::StokesTypes> visPolMap,
+       Vector<int> polMap,
+       std::string &stokes,
+       std::string &mType);
+//
+//--------------------------------------------------------------------------
+//
+void fillCFS_inmemory(const string& cfCacheName,
+		      CountedPtr<casa::refim::CFStore2> cfs2_l,
 		      CountedPtr<casa::refim::CFStore2> cfswt2_l,
+		      Vector<double>& uvOffset,
 		      const bool& psTerm,
 		      const bool& aTerm,
 		      const bool& conjBeams);
-
-void fillCFC_inmemory(DataBase& db,
-		      //CountedPtr<refim::ConvolutionFunction>& awcf_l
+//
+//--------------------------------------------------------------------------
+//
+void makeCFS_inmemory(DataBase& db,
 		      CountedPtr<casa::refim::CFStore2> cfs2_l,
 		      CountedPtr<casa::refim::CFStore2> cfswt2_l,
 		      refim::ConvolutionFunction& awcf_l,
 		      const TempImage<Complex>& cgrid,
-		      int& nW, float& pa, float& dpa,
+		      int& nW,
+		      float& pa,
+		      float& dpa,
 		      const Vector<double>& uvScale,
 		      const Vector<double>& uvOffset,
-		      std::string mType,
-		      std::string stokes=std::string("I"));
+		      const string cfCacheName="",
+		      std::string stokes=std::string("I"),
+		      std::string mType="");
 
 #endif 
