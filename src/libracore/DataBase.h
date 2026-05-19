@@ -84,11 +84,12 @@ inline std::tuple<std::vector<int>, std::vector<int> > loadMS(const String& msna
   if (!exprNode.isNull())
     {
       selectedMS = MS(thems(exprNode));
-      // TODO: should the following statements be moved outside this
-      // block?
-      spwid=msSelection.getSpwList().tovector();
-      fieldid=msSelection.getFieldList().tovector();
     }
+  //
+  // Extra ID lists with current selection
+  //
+  spwid=msSelection.getSpwList().tovector();
+  fieldid=msSelection.getFieldList().tovector();
   return std::tuple<std::vector<Int>, std::vector<Int> >{spwid, fieldid};
 }
 
