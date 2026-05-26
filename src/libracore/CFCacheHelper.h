@@ -28,10 +28,12 @@
 #include <casacore/measures/Measures/Stokes.h>
 #include <casacore/images/Images/ImageInterface.h>
 #include <casacore/images/Images/TempImage.h>
+#include <casacore/casa/Utilities/CountedPtr.h>
 // #include <casacore/tables/TaQL/ExprNode.h>
 
 #include <synthesis/TransformMachines2/PolOuterProduct.h>
 #include <synthesis/TransformMachines2/CFStore2.h>
+#include <synthesis/TransformMachines2/CFCache.h>
 #include <synthesis/TransformMachines2/AWConvFunc.h>
 #include <libracore/DataBase.h>
 
@@ -129,22 +131,22 @@ namespace libracore
 	 std::string &stokes, std::string &mType)
   {
     CountedPtr<refim::PolOuterProduct> pop_l = new PolOuterProduct;
-
+    
     //------------------------a mess----------------------------------------------------
     Vector<Int> intpolmap(visPolMap.nelements());
     for (uInt kk=0; kk < intpolmap.nelements(); ++kk){
       intpolmap[kk]=Int(visPolMap[kk]);
     }
     pop_l->initCFMaps(intpolmap, polMap);
-
+    
     PolMapType polMat, polIndexMat, conjPolMat, conjPolIndexMat;
     Vector<Int> visPol(vb2.correlationTypes());
     polMat = pop_l->makePolMat(visPol,polMap);
     polIndexMat = pop_l->makePol2CFMat(visPol,polMap);
-
+    
     conjPolMat = pop_l->makeConjPolMat(visPol,polMap);
     conjPolIndexMat = pop_l->makeConjPol2CFMat(visPol,polMap);
-
+    
     return pop_l;
   }
   //
@@ -168,13 +170,13 @@ namespace libracore
     //
     Vector<double> dummyUVScale;
     Matrix<double> dummyvbFreqSel;
-
+    
     AWConvFunc::makeConvFunction2(cfCacheName,
 				  dummyUVScale, uvOffset,	dummyvbFreqSel,
 				  *cfs2_l,*cfswt2_l,
 				  psTerm,	aTerm, conjBeams);
-
-
+    
+    
     // Report some stats.
     Double memUsed=cfs2_l->memUsage();
     String unit(" KB");
@@ -207,12 +209,12 @@ namespace libracore
     //existed earlier and I (SB) don't know what it may mean).
     Vector<int> polMap;
     Vector<casacore::Stokes::StokesTypes> visPolMap;//{0,1,2,3};
-
+    
     refim::SynthesisUtils::matchPol(*(db.vb_l),cgrid.coordinates(),polMap,visPolMap);
     // Initialize pop to have the right values
-
+    
     CountedPtr<refim::PolOuterProduct> pop_p = setPOP(*(db.vb_l), visPolMap, polMap, stokes, mType);
-
+    
     // Vector<int> spwidList, fieldidList;
     // Vector<double> spwRefFreqList;
     // spwidList      = db.spwidList;
@@ -226,7 +228,7 @@ namespace libracore
     // for the SPW IDs in the stl::vector db.spwidList.tovector().
     mssFreqSel.assign(filterByFirstColumn(mssFreqSel,db.spwidList));
     awcf_l.setSpwFreqSelection(mssFreqSel);
-
+    
     // Get the PA from the MS/VB if UI setting is outside the valid
     // range for PA [-180, +180].
     if (abs(pa) > 180.0) pa=getPA(*(db.vb_l));
@@ -260,7 +262,7 @@ namespace libracore
     // true (it is false in the default interface).
     // cfs2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","", Quantity(pa,"rad"),Quantity(dpa,"rad"),0,0,true);
     // cfswt2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","WT",Quantity(pa,"rad"),Quantity(dpa,"rad"),0,0,true);
-
+    
     if (!cfCacheName.empty())
       {
 	// cfs2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","", true);
@@ -269,6 +271,104 @@ namespace libracore
 	cfswt2_l->makePersistent(cfCacheName.c_str(),"","WT",true);
       }
   }
+  //
+  //--------------------------------------------------------------------------
+  //
+  std::tuple<CountedPtr<casa::refim::CFStore2>,
+	     CountedPtr<casa::refim::CFStore2>>
+  constructCFS(CountedPtr<refim::CFCache> cfCacheObj,
+	       const std::string& cfCacheName,
+	       const std::vector<std::string>& cfList,
+	       const std::vector<std::string>& wtCFList,
+	       const std::string& mode,
+	       const double& pa,
+	       const double& dpa)
+  {
+    //-------------------------------------------------------------------------------------------------
+    // Instantiate the CFCache object, initialize it and extract the
+    // CFStore objects from it (the CFC in-memory model).
+    //
+    //      CountedPtr<refim::CFCache> cfCacheObj_l = new refim::CFCache();
+    // try
+    //   {
+	cfCacheObj->setCacheDir(cfCacheName.data());
+	
+	if (mode == "dryrun")
+	  {
+	    // In LazyFill model, the CFs are loaded in memory when
+	    // accessed (e.g. in the gridder loops).  None of their meta
+	    // data is available till then, which is required for
+	    // filling.  Hence, setup the CFCacheObj for LAZYFILL only
+	    // for the dryRun=True case.  In case there are some CFs in
+	    // the CFC already, their lazy loading is OK since all that
+	    // is required to know is if the requested CFs already exist
+	    // or not.
+	    //
+	    cfCacheObj->setLazyFill(refim::SynthesisUtils::getenv("CFCache.LAZYFILL",1)==1);
+	    try
+	      {
+		cfCacheObj->initCache2(false, dpa, -1.0,
+				       casacore::String("CFS*")); // This would load CFs
+		cfCacheObj->initCache2(false, dpa, -1.0,
+				       casacore::String("WTCFS*")); // This would load WTCFs
+	      }
+	    catch (CFCIsEmpty& e)
+	      {
+	    	// Ignore the exception.  Empty CFs will be created in
+	    	// the section below after the CFStore objects (which
+	    	// encapsulate the in-memory model of the CFCache) are
+	    	// derived.
+	    	cerr << "The CFCache (\"" << cfCacheName << "\") is empty.  Building a new one." << LogIO::POST;
+	      }
+	  }
+	else if (mode == "fillcf")
+	  {
+	    // Do not set CFCacheObj for LAZYFILL for dryRun=False case.
+	    // For this case, the CFs listed in the cfList are expected
+	    // to be empty and needs filling.  The CF meta data is
+	    // therefore required in the memory for configuring the code
+	    // for filling the CF.
+	    //
+	    // This should be made more robust polymorphically in the
+	    // CFCache/CFBufer/CFCell tree.  Otherwise logic that is
+	    // really internal detals of how these objects work together
+	    // leaks all the way to the client layers.
+	    int verbose=0;
+	    cfCacheObj->setLazyFill(refim::SynthesisUtils::getenv("CFCache.LAZYFILL",1)==1);
+	    casacore::Vector<casacore::String> cfNames(cfList);
+	    casacore::Vector<casacore::String> wtCFNames(wtCFList);
+	    
+	    cfCacheObj->initCacheFromList2(cfCacheName,
+					     casacore::Vector<casacore::String>(cfList), //cfNames,
+					     casacore::Vector<casacore::String>(wtCFNames),
+					     pa,dpa,
+					     verbose);
+	  }
+	else
+	  {
+	    throw(AipsError("CFCacheHelper::constructCFS(): Don't know what to do with mode="+mode+"!"));
+	  }
+	//  } //try
+    // catch (CFSupportZero &e)
+    // 	{
+    // 	  // Ignore the "CFS is empty" exception.  This exception
+    // 	  // should not reach here since it is resolved in AWCF.  But
+    // 	  // leaving the code here in case there is a bug in the
+    // 	  // resolution code.
+    // 	  cerr << e.what() << endl;
+    // 	}
+    casacore::CountedPtr<casa::refim::CFStore2> cfs2_l, cfswt2_l;
+
+    if (!cfCacheObj.null())
+      //if (cfCacheObj != nullptr)
+      {
+	cfs2_l = casacore::CountedPtr<CFStore2>(&(cfCacheObj->memCache2_p)[0],false);
+	cfswt2_l =  casacore::CountedPtr<CFStore2>(&cfCacheObj->memCacheWt2_p[0],false);
+      }
+    
+    return std::make_tuple(cfs2_l, cfswt2_l);
+  }
+  
 }
 
 #endif 
