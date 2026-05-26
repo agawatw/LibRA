@@ -155,81 +155,109 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       // CFStore objects from it (the CFC in-memory model).
       //
       CountedPtr<refim::CFCache> cfCacheObj_l = new refim::CFCache();
+      CountedPtr<casa::refim::CFStore2> cfs2_l, cfswt2_l;
       try
 	{
-	  cfCacheObj_l->setCacheDir(cfCacheName.data());
-
-	  if (mode == "dryrun")
-	    {
-	      // In LazyFill model, the CFs are loaded in memory when
-	      // accessed (e.g. in the gridder loops).  None of their meta
-	      // data is available till then, which is required for
-	      // filling.  Hence, setup the CFCacheObj for LAZYFILL only
-	      // for the dryRun=True case.  In case there are some CFs in
-	      // the CFC already, their lazy loading is OK since all that
-	      // is required to know is if the requested CFs already exist
-	      // or not.
-	      //
-	      cfCacheObj_l->setLazyFill(refim::SynthesisUtils::getenv("CFCache.LAZYFILL",1)==1);
-	      try
-		{
-		  cfCacheObj_l->initCache2(false, dpa, -1.0,
-					   casacore::String("CFS*")); // This would load CFs
-		  cfCacheObj_l->initCache2(false, dpa, -1.0,
-					   casacore::String("WTCFS*")); // This would load WTCFs
-		}
-	      catch (CFCIsEmpty& e)
-		{
-		  // Ignore the exception.  Empty CFs will be created in
-		  // the section below after the CFStore objects (which
-		  // encapsulate the in-memory model of the CFCache) are
-		  // derived.
-		  log_l << "The CFCache (\"" << cfCacheName << "\") is empty.  Building a new one." << LogIO::POST;
-		}
-	    }
-	  else if (mode == "fillcf")
-	    {
-	      // Do not set CFCacheObj for LAZYFILL for dryRun=False case.
-	      // For this case, the CFs listed in the cfList are expected
-	      // to be empty and needs filling.  The CF meta data is
-	      // therefore required in the memory for configuring the code
-	      // for filling the CF.
-	      //
-	      // This should be made more robust polymorphically in the
-	      // CFCache/CFBufer/CFCell tree.  Otherwise logic that is
-	      // really internal detals of how these objects work together
-	      // leaks all the way to the client layers.
-	      int verbose=0;
-	      cfCacheObj_l->setLazyFill(refim::SynthesisUtils::getenv("CFCache.LAZYFILL",1)==1);
-	      casacore::Vector<casacore::String> cfNames(cfList);
-	      casacore::Vector<casacore::String> wtCFNames(wtCFList);
-
-	      cfCacheObj_l->initCacheFromList2(cfCacheName,
-					       casacore::Vector<casacore::String>(cfList), //cfNames,
-					       casacore::Vector<casacore::String>(wtCFNames),
-					       pa,dpa,
-					       verbose);
-	    }
-	  else
-	    {
-	      throw(AipsError("Coyote: Don't know what to do with mode="+mode+"!"));
-	    }
+	  auto [cfs2_l, cfswt2_l] = libracore::constructCFS(cfCacheObj_l,
+							    cfCacheName,
+							    cfList,
+							    wtCFList,
+							    mode,
+							    pa,
+							    dpa);
 	}
       catch (CFSupportZero &e)
+      	{
+      	  // Ignore the "CFS is empty" exception.  This exception
+      	  // should not reach here since it is resolved in AWCF.  But
+      	  // leaving the code here in case there is a bug in the
+      	  // resolution code.
+      	  cerr << e.what() << endl;
+      	}
+      catch (CFCIsEmpty& e)
 	{
-	  // Ignore the "CFS is empty" exception.  This exception
-	  // should not reach here since it is resolved in AWCF.  But
-	  // leaving the code here in case there is a bug in the
-	  // resolution code.
-	  cerr << e.what() << endl;
-	}
-      CountedPtr<casa::refim::CFStore2> cfs2_l, cfswt2_l;
+	  // Ignore the exception.  Empty CFs will be created in
+	  // the section below after the CFStore objects (which
+	  // encapsulate the in-memory model of the CFCache) are
+	  // derived.
+	  log_l << "The CFCache (\"" << cfCacheName << "\") is empty.  Building a new one." << LogIO::POST;
+	};
 
-      if (!cfCacheObj_l.null())
-	{
-	  cfs2_l = CountedPtr<CFStore2>(&(cfCacheObj_l->memCache2_p)[0],false);//new CFStore2;
-	  cfswt2_l =  CountedPtr<CFStore2>(&cfCacheObj_l->memCacheWt2_p[0],false);//new CFStore2;
-	}
+      // try
+      // 	{
+      // 	  cfCacheObj_l->setCacheDir(cfCacheName.data());
+
+      // 	  if (mode == "dryrun")
+      // 	    {
+      // 	      // In LazyFill model, the CFs are loaded in memory when
+      // 	      // accessed (e.g. in the gridder loops).  None of their meta
+      // 	      // data is available till then, which is required for
+      // 	      // filling.  Hence, setup the CFCacheObj for LAZYFILL only
+      // 	      // for the dryRun=True case.  In case there are some CFs in
+      // 	      // the CFC already, their lazy loading is OK since all that
+      // 	      // is required to know is if the requested CFs already exist
+      // 	      // or not.
+      // 	      //
+      // 	      cfCacheObj_l->setLazyFill(refim::SynthesisUtils::getenv("CFCache.LAZYFILL",1)==1);
+      // 	      try
+      // 		{
+      // 		  cfCacheObj_l->initCache2(false, dpa, -1.0,
+      // 					   casacore::String("CFS*")); // This would load CFs
+      // 		  cfCacheObj_l->initCache2(false, dpa, -1.0,
+      // 					   casacore::String("WTCFS*")); // This would load WTCFs
+      // 		}
+      // 	      catch (CFCIsEmpty& e)
+      // 		{
+      // 		  // Ignore the exception.  Empty CFs will be created in
+      // 		  // the section below after the CFStore objects (which
+      // 		  // encapsulate the in-memory model of the CFCache) are
+      // 		  // derived.
+      // 		  log_l << "The CFCache (\"" << cfCacheName << "\") is empty.  Building a new one." << LogIO::POST;
+      // 		}
+      // 	    }
+      // 	  else if (mode == "fillcf")
+      // 	    {
+      // 	      // Do not set CFCacheObj for LAZYFILL for dryRun=False case.
+      // 	      // For this case, the CFs listed in the cfList are expected
+      // 	      // to be empty and needs filling.  The CF meta data is
+      // 	      // therefore required in the memory for configuring the code
+      // 	      // for filling the CF.
+      // 	      //
+      // 	      // This should be made more robust polymorphically in the
+      // 	      // CFCache/CFBufer/CFCell tree.  Otherwise logic that is
+      // 	      // really internal detals of how these objects work together
+      // 	      // leaks all the way to the client layers.
+      // 	      int verbose=0;
+      // 	      cfCacheObj_l->setLazyFill(refim::SynthesisUtils::getenv("CFCache.LAZYFILL",1)==1);
+      // 	      casacore::Vector<casacore::String> cfNames(cfList);
+      // 	      casacore::Vector<casacore::String> wtCFNames(wtCFList);
+
+      // 	      cfCacheObj_l->initCacheFromList2(cfCacheName,
+      // 					       casacore::Vector<casacore::String>(cfList), //cfNames,
+      // 					       casacore::Vector<casacore::String>(wtCFNames),
+      // 					       pa,dpa,
+      // 					       verbose);
+      // 	    }
+      // 	  else
+      // 	    {
+      // 	      throw(AipsError("Coyote: Don't know what to do with mode="+mode+"!"));
+      // 	    }
+      // 	}
+      // catch (CFSupportZero &e)
+      // 	{
+      // 	  // Ignore the "CFS is empty" exception.  This exception
+      // 	  // should not reach here since it is resolved in AWCF.  But
+      // 	  // leaving the code here in case there is a bug in the
+      // 	  // resolution code.
+      // 	  cerr << e.what() << endl;
+      // 	}
+      // CountedPtr<casa::refim::CFStore2> cfs2_l, cfswt2_l;
+
+      // if (!cfCacheObj_l.null())
+      // 	{
+      // 	  cfs2_l = CountedPtr<CFStore2>(&(cfCacheObj_l->memCache2_p)[0],false);//new CFStore2;
+      // 	  cfswt2_l =  CountedPtr<CFStore2>(&cfCacheObj_l->memCacheWt2_p[0],false);//new CFStore2;
+      // 	}
       // cfs2_l->show("Coyote: CFS::show(CF): ",cerr,false);
       // cfswt2_l->show("Coyote: CFS::show(WTCF): ",cerr,false);
       //-------------------------------------------------------------------------------------------------
@@ -267,14 +295,6 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  //
 	  // Creating a complex image from the user inputed image.
 	  // To be turned into the most basic parameters needed to make CF
-	  // To read an image on disk you need PagedImage. 
-	  // This is inherited from ImageInterface so should be able to pass
-	  // an image interface object from it.
-	  //
-	  // PagedImage<Complex> cgrid =
-	  //   makeEmptySkyImage4CF(*(db.vi2_l), db.selectedMS, db.msSelection, 
-	  // 			 imageName, imSize, cellSize, phaseCenter, 
-	  // 			 stokes, refFreqStr);
 	  TempImage<Complex> cgrid =
 	    makeEmptySkyImage(*(db.vi2_l), db.selectedMS, db.msSelection, 
 			      imageName, String(""),imSize, cellSize, phaseCenter, 
@@ -283,10 +303,8 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  // Save the coordinate system in a record and make it persistent in
 	  // the CFCache.
 	  //
-	  //	  String targetName=String(cfCacheName);
 	  ImageInformation<Complex> imInfo(cgrid,casacore::String(cfCacheName));
 	  imInfo.save();
-	  //	  cgrid.table().markForDelete();
 	  
 	  //-------------------------------------------------------------------------------------------------
 	  libracore::makeCFS_inmemory(db,

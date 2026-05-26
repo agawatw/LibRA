@@ -178,4 +178,98 @@ namespace libracore
 	cfswt2_l->makePersistent(cfCacheName.c_str(),"","WT",true);
       }
   }
+  //
+  //--------------------------------------------------------------------------
+  //
+  std::tuple<CountedPtr<casa::refim::CFStore2>,
+	     CountedPtr<casa::refim::CFStore2>>
+  constructCFS(const refim::CFCache& cfCacheObjRef,
+	       const std::string& cfCacheName,
+	       const std::string& mode,
+	       const double& pa,
+	       const double& dpa)
+  {
+      //-------------------------------------------------------------------------------------------------
+      // Instantiate the CFCache object, initialize it and extract the
+      // CFStore objects from it (the CFC in-memory model).
+      //
+    //      CountedPtr<refim::CFCache> cfCacheObj_l = new refim::CFCache();
+      try
+	{
+	  cfCacheObjRef.setCacheDir(cfCacheName.data());
+
+	  if (mode == "dryrun")
+	    {
+	      // In LazyFill model, the CFs are loaded in memory when
+	      // accessed (e.g. in the gridder loops).  None of their meta
+	      // data is available till then, which is required for
+	      // filling.  Hence, setup the CFCacheObj for LAZYFILL only
+	      // for the dryRun=True case.  In case there are some CFs in
+	      // the CFC already, their lazy loading is OK since all that
+	      // is required to know is if the requested CFs already exist
+	      // or not.
+	      //
+	      cfCacheObjRef.setLazyFill(refim::SynthesisUtils::getenv("CFCache.LAZYFILL",1)==1);
+	      // try
+	      // 	{
+		  cfCacheObjRef.initCache2(false, dpa, -1.0,
+					   casacore::String("CFS*")); // This would load CFs
+		  cfCacheObjRef.initCache2(false, dpa, -1.0,
+					   casacore::String("WTCFS*")); // This would load WTCFs
+	      // 	}
+	      // catch (CFCIsEmpty& e)
+	      // 	{
+	      // 	  // Ignore the exception.  Empty CFs will be created in
+	      // 	  // the section below after the CFStore objects (which
+	      // 	  // encapsulate the in-memory model of the CFCache) are
+	      // 	  // derived.
+	      // 	  log_l << "The CFCache (\"" << cfCacheName << "\") is empty.  Building a new one." << LogIO::POST;
+	      // 	}
+	    }
+	  else if (mode == "fillcf")
+	    {
+	      // Do not set CFCacheObj for LAZYFILL for dryRun=False case.
+	      // For this case, the CFs listed in the cfList are expected
+	      // to be empty and needs filling.  The CF meta data is
+	      // therefore required in the memory for configuring the code
+	      // for filling the CF.
+	      //
+	      // This should be made more robust polymorphically in the
+	      // CFCache/CFBufer/CFCell tree.  Otherwise logic that is
+	      // really internal detals of how these objects work together
+	      // leaks all the way to the client layers.
+	      int verbose=0;
+	      cfCacheObjRef.setLazyFill(refim::SynthesisUtils::getenv("CFCache.LAZYFILL",1)==1);
+	      casacore::Vector<casacore::String> cfNames(cfList);
+	      casacore::Vector<casacore::String> wtCFNames(wtCFList);
+
+	      cfCacheObjRef.initCacheFromList2(cfCacheName,
+					       casacore::Vector<casacore::String>(cfList), //cfNames,
+					       casacore::Vector<casacore::String>(wtCFNames),
+					       pa,dpa,
+					       verbose);
+	    }
+	  else
+	    {
+	      throw(AipsError("CFCacheHelper::constructCFS(): Don't know what to do with mode="+mode+"!"));
+	    }
+	}
+      // catch (CFSupportZero &e)
+      // 	{
+      // 	  // Ignore the "CFS is empty" exception.  This exception
+      // 	  // should not reach here since it is resolved in AWCF.  But
+      // 	  // leaving the code here in case there is a bug in the
+      // 	  // resolution code.
+      // 	  cerr << e.what() << endl;
+      // 	}
+      CountedPtr<casa::refim::CFStore2> cfs2_l, cfswt2_l;
+
+      if (!cfCacheObj_l.null())
+	{
+	  cfs2_l = CountedPtr<CFStore2>(&(cfCacheObjRef.memCache2_p)[0],false);
+	  cfswt2_l =  CountedPtr<CFStore2>(&cfCacheObjRef.memCacheWt2_p[0],false);
+	}
+
+      return std::make_tuple(cfs2_l, cfswt2_l);
+  }
 }
