@@ -158,13 +158,11 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       CountedPtr<casa::refim::CFStore2> cfs2_l, cfswt2_l;
       try
 	{
-	  auto [cfs2_l, cfswt2_l] = libracore::constructCFS(cfCacheObj_l,
-							    cfCacheName,
-							    cfList,
-							    wtCFList,
-							    mode,
-							    pa,
-							    dpa);
+	  std::tie(cfs2_l, cfswt2_l) = libracore::constructCFS(cfCacheObj_l.get(),
+							       cfCacheName,
+							       cfList, wtCFList,
+							       mode,
+							       pa, dpa);
 	}
       catch (CFSupportZero &e)
       	{
@@ -174,14 +172,6 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       	  // resolution code.
       	  cerr << e.what() << endl;
       	}
-      catch (CFCIsEmpty& e)
-	{
-	  // Ignore the exception.  Empty CFs will be created in
-	  // the section below after the CFStore objects (which
-	  // encapsulate the in-memory model of the CFCache) are
-	  // derived.
-	  log_l << "The CFCache (\"" << cfCacheName << "\") is empty.  Building a new one." << LogIO::POST;
-	};
 
       // try
       // 	{
@@ -307,17 +297,9 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  imInfo.save();
 	  
 	  //-------------------------------------------------------------------------------------------------
-	  libracore::makeCFS_inmemory(db,
-			   cfs2_l,
-			   cfswt2_l,
-			   *awcf_l,
-			   cgrid,
-			   nW,
-			   pa,
-			   dpa,
-			   uvScale,
-			   uvOffset,
-			   cfCacheName);
+	  libracore::makeCFS_inmemory(db, cfs2_l, cfswt2_l, *awcf_l,
+				      cgrid, nW, pa, dpa, uvScale,
+				      uvOffset, cfCacheName);
 	  
 	  // //-------------------------------------------------------------------------------------------------
 	  // // Instantiate the PolOuterProduce object which encapsulates the
@@ -395,8 +377,8 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  // left untouched.
 	  //
 	  libracore::fillCFS_inmemory(cfCacheName,
-			   cfs2_l, cfswt2_l, uvOffset,
-			   psTerm, aTerm, conjBeams);
+				      cfs2_l, cfswt2_l, uvOffset,
+				      psTerm, aTerm, conjBeams);
 
 	  // Vector<Double> dummyUVScale;
 	  // Matrix<Double> dummyvbFreqSel;
