@@ -276,7 +276,8 @@ namespace libracore
   //
   std::tuple<CountedPtr<casa::refim::CFStore2>,
 	     CountedPtr<casa::refim::CFStore2>>
-  constructCFS(CountedPtr<refim::CFCache> cfCacheObj,
+  //  constructCFS(CountedPtr<refim::CFCache> cfCacheObj,
+  constructCFS(refim::CFCache* cfCacheObj,
 	       const std::string& cfCacheName,
 	       const std::vector<std::string>& cfList,
 	       const std::vector<std::string>& wtCFList,
@@ -318,7 +319,7 @@ namespace libracore
 	    	// the section below after the CFStore objects (which
 	    	// encapsulate the in-memory model of the CFCache) are
 	    	// derived.
-	    	cerr << "The CFCache (\"" << cfCacheName << "\") is empty.  Building a new one." << LogIO::POST;
+	    	//cerr << "The CFCache (\"" << cfCacheName << "\") is empty.  Building a new one." << LogIO::POST;
 	      }
 	  }
 	else if (mode == "fillcf")
@@ -359,8 +360,8 @@ namespace libracore
     // 	}
     casacore::CountedPtr<casa::refim::CFStore2> cfs2_l, cfswt2_l;
 
-    if (!cfCacheObj.null())
-      //if (cfCacheObj != nullptr)
+    //    if (!cfCacheObj.null())
+    if (cfCacheObj != nullptr)
       {
 	cfs2_l = casacore::CountedPtr<CFStore2>(&(cfCacheObj->memCache2_p)[0],false);
 	cfswt2_l =  casacore::CountedPtr<CFStore2>(&cfCacheObj->memCacheWt2_p[0],false);
