@@ -104,13 +104,6 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  for(auto x : cfList) wtCFList.push_back("WT"+x);
 	}
 
-      // Make a name for the temp image that will be unique for multiple
-      // instances on different computers but writing to the same
-      // directory.
-      char hostname[HOST_NAME_MAX];
-      gethostname(hostname, HOST_NAME_MAX);
-      string imageName=cfCacheName + "/uvgrid.im_" +
-	to_string(getppid()) + "_"+string(hostname);
       bool wTerm = (nW > 1);
 
       //-------------------------------------------------------------------------------------------------
@@ -182,7 +175,7 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  // To be turned into the most basic parameters needed to make CF
 	  TempImage<Complex> cgrid =
 	    makeEmptySkyImage(*(db.vi2_l), db.selectedMS, db.msSelection,
-			      imageName, String(""),imSize, cellSize, phaseCenter,
+			      imSize, cellSize, phaseCenter,
 			      stokes, refFreqStr,String("mfs"));
 	  //
 	  // Save the coordinate system in a record and make it persistent in
