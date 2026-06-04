@@ -1334,7 +1334,7 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
 		  << " " << cfb->getCFCellPtr(0,0,0)->shape_p
 		  << LogIO::DEBUG1 << LogIO::POST;
 
-	    IPosition shp(cfb->shape());
+	    IPosition shp(cfb->storageShape());
 	    cbPtr = cfb;
 	    for(Int k=0;k<shp(2);k++)   // Mueller-loop
 	      for(Int j=0;j<shp(1);j++)     // W-loop
@@ -1680,8 +1680,8 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
 
     CountedPtr<CFBuffer> cfb_p, cfwtb_p;
 
-    IPosition cfsShape = cfs2.getShape();
-    IPosition wCFStShape = cfwts2.getShape();
+    IPosition cfsShape = cfs2.shape();
+    IPosition wCFStShape = cfwts2.shape();
 
     //Matrix<Int> uniqueBaselineTypeList=makeBaselineList(aTerm_p->getAntTypeList());
     Bool wbAWP, wTermOn;
@@ -1695,7 +1695,7 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
 	    cfb_p->primeTheCache();
 	    cfwtb_p->primeTheCache();
 
-	    IPosition cfbShape = cfb_p->shape();
+	    IPosition cfbShape = cfb_p->storageShape();
 	    for (int iNu=0; iNu<cfbShape(0); iNu++)       // Frequency axis
 	      {
 		for (int iPol=0; iPol<cfbShape(2); iPol++)     // Polarization axis

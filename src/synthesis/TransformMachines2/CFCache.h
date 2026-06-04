@@ -187,6 +187,13 @@ namespace casa { //# NAMESPACE CASA - BEGIN
     // Compute the size of the memory cache in bytes
     //
     casacore::Long size();
+    inline casacore::IPosition shape(casacore::String whichCache="")
+    {
+      if (whichCache=="CF") return memCache2_p[0].shape();
+      else if (whichCache=="WTCF") return memCacheWt2_p[0].shape();
+      else
+	throw(SynthesisFTMachineError("Incorrect whichCache spec in CFCache::shape()"));
+    }
     //
     // Method to set the class to caluclate the differential
     // Parallactic Angle.  The ParAngleChangeDetector also holds the

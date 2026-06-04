@@ -161,7 +161,7 @@ namespace casa{
     LogOrigin logOrigin("CFCache2", "summarize");
     LogIO log_l(logOrigin);
 
-    IPosition cfsShp=memStore[0].getShape();
+    IPosition cfsShp=memStore[0].shape();
     Int ipol=0;
 
     if (cfsInfo)
@@ -181,7 +181,7 @@ namespace casa{
       for(Int iPA=0; iPA<cfsShp(0); iPA++)
 	{
 	  CFBuffer& cfb=memStore[0](iPA,iBL);
-	  IPosition cfbShp=cfb.getShape();
+	  IPosition cfbShp=cfb.storageShape();
 	  for (Int iw=0; iw<cfbShp[1]; iw++)
 	    {
 	      log_l << "Support Size (w:"<< iw << ", PA:" << iPA << ", BL:" << iBL << ", C:*): ";
@@ -214,13 +214,13 @@ namespace casa{
       {
 	log_l << "Loading misc info from CFs.  " << LogIO::POST;
 	fillCFListFromDisk(cfFileNames, path, memCache2_p, true, selectedPA, dPA,verbose);
-	log_l << "CFStore shape: " << memCache2_p[0].getShape() << LogIO::POST;
+	log_l << "CFStore shape: " << shape("CF") << LogIO::POST;
       }
     if (cfWtFileNames.nelements() > 0)
       {
 	log_l << "Loading misc info from WTCFs. " << LogIO::POST;
 	fillCFListFromDisk(cfWtFileNames, path, memCacheWt2_p, true, selectedPA, dPA, verbose);
-	log_l << "CFStore shape: " << memCacheWt2_p[0].getShape() << LogIO::POST;
+	log_l << "CFStore shape: " << shape("WTCF") << LogIO::POST;
       }
     memCache2_p[0].primeTheCFB();
     memCacheWt2_p[0].primeTheCFB();

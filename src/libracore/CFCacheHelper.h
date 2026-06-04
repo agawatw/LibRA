@@ -44,42 +44,7 @@ using namespace std;
 
 namespace libracore
 {
-  //
-  //--------------------------------------------------------------------------
-  //
-  CountedPtr<refim::PolOuterProduct>
-  setPOP(vi::VisBuffer2 &vb2,
-	 Vector<casacore::Stokes::StokesTypes> visPolMap,
-	 Vector<int> polMap,
-	 std::string &stokes,
-	 std::string &mType);
-  //
-  //--------------------------------------------------------------------------
-  //
-  void fillCFS_inmemory(const string& cfCacheName,
-			CountedPtr<casa::refim::CFStore2> cfs2_l,
-			CountedPtr<casa::refim::CFStore2> cfswt2_l,
-			Vector<double>& uvOffset,
-			const bool& psTerm,
-			const bool& aTerm,
-			const bool& conjBeams);
-  //
-  //--------------------------------------------------------------------------
-  //
-  void makeCFS_inmemory(DataBase& db,
-			CountedPtr<casa::refim::CFStore2> cfs2_l,
-			CountedPtr<casa::refim::CFStore2> cfswt2_l,
-			refim::ConvolutionFunction& awcf_l,
-			const TempImage<Complex>& cgrid,
-			int& nW,
-			float& pa,
-			float& dpa,
-			const Vector<double>& uvScale,
-			const Vector<double>& uvOffset,
-			const string cfCacheName="",
-			std::string stokes=std::string("I"),
-			std::string mType="");
-};
+  enum CFCHelperCodes {MAKE_CFCFS, MAKE_WTCFS, MAKE_BOTHCFS};
 
 //
 //--------------------------------------------------------------------------
@@ -122,8 +87,6 @@ namespace libracore
 //
 //--------------------------------------------------------------------------
 //
-namespace libracore
-{
   CountedPtr<refim::PolOuterProduct>
   setPOP(vi::VisBuffer2 &vb2,
 	 Vector<casacore::Stokes::StokesTypes> visPolMap,
@@ -133,14 +96,14 @@ namespace libracore
     CountedPtr<refim::PolOuterProduct> pop_l = new PolOuterProduct;
     
     //------------------------a mess----------------------------------------------------
-    Vector<Int> intpolmap(visPolMap.nelements());
-    for (uInt kk=0; kk < intpolmap.nelements(); ++kk){
-      intpolmap[kk]=Int(visPolMap[kk]);
+    Vector<int> intpolmap(visPolMap.nelements());
+    for (uint kk=0; kk < intpolmap.nelements(); ++kk){
+      intpolmap[kk]=int(visPolMap[kk]);
     }
     pop_l->initCFMaps(intpolmap, polMap);
     
     PolMapType polMat, polIndexMat, conjPolMat, conjPolIndexMat;
-    Vector<Int> visPol(vb2.correlationTypes());
+    Vector<int> visPol(vb2.correlationTypes());
     polMat = pop_l->makePolMat(visPol,polMap);
     polIndexMat = pop_l->makePol2CFMat(visPol,polMap);
     
@@ -178,9 +141,9 @@ namespace libracore
     
     
     // Report some stats.
-    Double memUsed=cfs2_l->memUsage();
+    double memUsed=cfs2_l->memUsage();
     String unit(" KB");
-    memUsed = (Int)(memUsed/1024.0+0.5);
+    memUsed = (int)(memUsed/1024.0+0.5);
     if (memUsed > 1024) {memUsed /=1024; unit=" MB";}
   }
   //
@@ -195,9 +158,9 @@ namespace libracore
 			int& nW, float& pa, float& dpa,
 			const Vector<double>& uvScale,
 			const Vector<double>& uvOffset,
-			const string cfCacheName,
-			std::string stokes,
-			std::string mType)
+			const string cfCacheName="",
+			std::string stokes=std::string("I"),
+			std::string mType="")
   {
     //-------------------------------------------------------------------------------------------------
     // Instantiate the PolOuterProduce object which encapsulates the
@@ -243,7 +206,7 @@ namespace libracore
     // parallelization of the compute intensive step (filling the
     // CFs) which is highly parallelizable and scales well.
     //
-    Matrix<Double> vbFreqSelection ;
+    Matrix<double> vbFreqSelection ;
     bool fillCF=false;
     awcf_l.makeConvFunction(cgrid , *(db.vb_l), nW,
 			    pop_p, pa, dpa, uvScale, uvOffset,
@@ -273,6 +236,8 @@ namespace libracore
   }
   //
   //--------------------------------------------------------------------------
+  // This function configures the CFCache and returns the requirested CFSes.
+  // Options for whichCFC are MAKE_CFCFS, MAKE_WTCFS and MAKE_BOTHCFS
   //
   std::tuple<CountedPtr<casa::refim::CFStore2>,
 	     CountedPtr<casa::refim::CFStore2>>
@@ -283,7 +248,8 @@ namespace libracore
 	       const std::vector<std::string>& wtCFList,
 	       const std::string& mode,
 	       const double& pa,
-	       const double& dpa)
+	       const double& dpa,
+	       const CFCHelperCodes whichCFS=MAKE_BOTHCFS)
   {
     //-------------------------------------------------------------------------------------------------
     // Instantiate the CFCache object, initialize it and extract the
@@ -308,10 +274,12 @@ namespace libracore
 	    cfCacheObj->setLazyFill(refim::SynthesisUtils::getenv("CFCache.LAZYFILL",1)==1);
 	    try
 	      {
-		cfCacheObj->initCache2(false, dpa, -1.0,
-				       casacore::String("CFS*")); // This would load CFs
-		cfCacheObj->initCache2(false, dpa, -1.0,
-				       casacore::String("WTCFS*")); // This would load WTCFs
+		if ((whichCFS == MAKE_CFCFS) || (whichCFS == MAKE_BOTHCFS))
+		  cfCacheObj->initCache2(false, dpa, -1.0,
+					 casacore::String("CFS*")); // This would load CFs
+		if ((whichCFS == MAKE_WTCFS) || (whichCFS == MAKE_BOTHCFS))
+		  cfCacheObj->initCache2(false, dpa, -1.0,
+					 casacore::String("WTCFS*")); // This would load WTCFs
 	      }
 	    catch (CFCIsEmpty& e)
 	      {
@@ -363,8 +331,10 @@ namespace libracore
     //    if (!cfCacheObj.null())
     if (cfCacheObj != nullptr)
       {
-	cfs2_l = casacore::CountedPtr<CFStore2>(&(cfCacheObj->memCache2_p)[0],false);
-	cfswt2_l =  casacore::CountedPtr<CFStore2>(&cfCacheObj->memCacheWt2_p[0],false);
+	if ((whichCFS == MAKE_CFCFS) || (whichCFS == MAKE_BOTHCFS))
+	  cfs2_l = casacore::CountedPtr<CFStore2>(&(cfCacheObj->memCache2_p)[0],false);
+	if ((whichCFS == MAKE_WTCFS) || (whichCFS == MAKE_BOTHCFS))
+	  cfswt2_l =  casacore::CountedPtr<CFStore2>(&cfCacheObj->memCacheWt2_p[0],false);
       }
     
     return std::make_tuple(cfs2_l, cfswt2_l);
