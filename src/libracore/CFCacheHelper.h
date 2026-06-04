@@ -304,12 +304,10 @@ namespace libracore
 	    // leaks all the way to the client layers.
 	    int verbose=0;
 	    cfCacheObj->setLazyFill(refim::SynthesisUtils::getenv("CFCache.LAZYFILL",1)==1);
-	    casacore::Vector<casacore::String> cfNames(cfList);
-	    casacore::Vector<casacore::String> wtCFNames(wtCFList);
 	    
 	    cfCacheObj->initCacheFromList2(cfCacheName,
 					     casacore::Vector<casacore::String>(cfList), //cfNames,
-					     casacore::Vector<casacore::String>(wtCFNames),
+					     casacore::Vector<casacore::String>(wtCFList),
 					     pa,dpa,
 					     verbose);
 	  }
