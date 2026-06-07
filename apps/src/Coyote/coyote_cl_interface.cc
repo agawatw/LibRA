@@ -102,21 +102,28 @@ void UI(bool restart, int argc, char **argv, bool interactive,
       i=1;clgetValp("oversampling", cfOversampling,i);
 
       InitMap(watchPoints,exposedKeys);
-      // Expose cflist for mode=fillcf. Hide aterm,psterm,conjbeams
+      // Expose cflist for mode=fillcf. 
       exposedKeys.resize(0);
       exposedKeys.push_back("cflist");
       watchPoints["fillcf"]=exposedKeys;
 
-      // // Expose aterm,psterm,conjbeams for mode=dryrun. Hide fillcf.
-      // exposedKeys.resize(0);
-      // exposedKeys.push_back("aterm");
-      // exposedKeys.push_back("psterm");
-      // exposedKeys.push_back("conjbeams");
-      // watchPoints["dryrun"]=exposedKeys;
+      //----------------------------------------------
+      // None of the following keysword values are used in
+      // mode=fillcf.  So, hide them.
+      {
+	exposedKeys=
+	  {
+	    "vis","telescope","imsize","cell","stokes","reffreq",
+	    "phasecenter","wplanes","wbawp","aterm","psterm",
+	    "conjbeams","muellertype","pa","dpa","field","spw",
+	    "buffersize","oversampling"
+	  };
+	watchPoints["dryrun"]=exposedKeys;
+      }
+      //----------------------------------------------
 
       i=1;clgetValp("mode", mode,i,watchPoints);clSetOptions("mode",{"dryrun","fillcf"});
       i=0;clgetValp("cflist", cfList,i);
-      //      clgetNSValp("wtcflist", wtCFList,i);
       
       EndCL();
       
