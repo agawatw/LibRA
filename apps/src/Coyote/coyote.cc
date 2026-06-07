@@ -98,23 +98,9 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       if (mode=="fillcf")
 	{
 	  cfList = fileList(cfCacheName,cfList);
-
 	  log_l << "Found " << cfList.size() << " elements to fill." << LogIO::POST;
-
 	  for(auto x : cfList) wtCFList.push_back("WT"+x);
 	}
-
-      bool wTerm = (nW > 1);
-
-      //-------------------------------------------------------------------------------------------------
-      // Instantiate AWCF object for making the CFs later.
-      //
-      CountedPtr<refim::ConvolutionFunction> awcf_l =
-	AWProjectFT::makeCFObject(telescopeName,
-				  aTerm, psTerm, wTerm, true,
-				  WBAwp, conjBeams,
-				  cfBufferSize,cfOversampling);
-      //-------------------------------------------------------------------------------------------------
 
       //-------------------------------------------------------------------------------------------------
       // Instantiate the CFCache object, initialize it and extract the
@@ -124,11 +110,9 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       CountedPtr<casa::refim::CFStore2> cfs2_l, cfswt2_l;
       try
 	{
-	  std::tie(cfs2_l, cfswt2_l) = libracore::constructCFS(cfCacheObj_l.get(),
-							       cfCacheName,
-							       cfList, wtCFList,
-							       mode,
-							       pa, dpa);
+	  std::tie(cfs2_l, cfswt2_l) =
+	    libracore::constructCFS(cfCacheObj_l.get(), cfCacheName,
+				    cfList, wtCFList, mode, pa, dpa);
 	}
       catch (CFSupportZero &e)
       	{
@@ -138,48 +122,46 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       	  // resolution code.
       	  log_l << e.what() << LogIO::POST;
       	}
+      //
       //-------------------------------------------------------------------------------------------------
-
-      //-------------------------------------------------------------------------------------------------
-      // Setup and apply makeConvFunction() for mode=dryrun and
-      // makeConvFunction2() for mode=fillcf on the CF store memory models
-      // (cfs2_l and cfswt2_l)
-      string uvDistStr;
-      bool doSPWDataIter = false;
+      //
       Vector<int> imSize(2,NX);
-      const Vector<double> uvScale(3,0);
-      bool fillCF = (mode == "fillcf");
-      Vector<double> uvOffset;
-
-      uvOffset.resize(3);
-      uvOffset(0)=imSize[0];
-      uvOffset(1)=imSize[1];
-      uvOffset(2)=0;
-
+      Vector<double> uvOffset={(double)imSize[0],(double)imSize[1],0.0};
+      
       if (mode=="dryrun")
 	{
+	  // Setup and apply makeConvFunction() for mode=dryrun and
+	  // makeConvFunction2() for mode=fillcf on the CF store memory models
+	  // (cfs2_l and cfswt2_l)
+	  string uvDistStr;
+	  bool doSPWDataIter = false;
+	  const Vector<double> uvScale(3,0);
 	  //
 	  // mode="dryrun" case.  This makes "blank CFs" in the CFC from
 	  // scratch.  So needs meta data from the sky image as well
 	  // as the MS.
 	  //
+	  // Instantiate the DataBase object
 	  //
-	  // Instantite the DataBase object, make a complex grid using meta
-	  // from the DataBase and the sky-image provided.
-	  //
-	  DataBase db(MSNBuf, fieldStr, spwStr, uvDistStr, WBAwp, nW,
-		      doSPWDataIter);
+	  DataBase db(MSNBuf, fieldStr, spwStr, uvDistStr, WBAwp, nW, doSPWDataIter);
 
-	  //
-	  // Creating a complex image from the user inputed image.
+	  //-------------------------------------------------------------------------------------------------
+	  // Create a complex image from the user-defined image.
 	  // To be turned into the most basic parameters needed to make CF
 	  TempImage<Complex> cgrid =
-	    makeEmptySkyImage(*(db.vi2_l), db.selectedMS, db.msSelection,
-			      imSize, cellSize, phaseCenter,
-			      stokes, refFreqStr,String("mfs"));
+	    makeEmptySkyImage(*(db.vi2_l), db.selectedMS, db.msSelection, imSize,
+			      cellSize, phaseCenter, stokes, refFreqStr,String("mfs"));
+	  //-------------------------------------------------------------------------------------------------
+	  // Instantiate the AWCF object for making the CFs.
 	  //
-	  // Save the coordinate system in a record and make it persistent in
-	  // the CFCache.
+	  bool wTerm = (nW > 1);
+	  CountedPtr<refim::ConvolutionFunction> awcf_l =
+	    AWProjectFT::makeCFObject(telescopeName, aTerm, psTerm, wTerm, true,
+				      WBAwp, conjBeams, cfBufferSize,cfOversampling);
+	  //-------------------------------------------------------------------------------------------------
+	  // Extract complex grid info from cgrid (csys, imsize,
+	  // etc.), save in a record and make it persistent in the
+	  // CFCache.
 	  //
 	  ImageInformation<Complex> imInfo(cgrid,casacore::String(cfCacheName));
 	  imInfo.save();
@@ -205,22 +187,12 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  libracore::fillCFS_inmemory(cfCacheName,
 				      cfs2_l, cfswt2_l, uvOffset,
 				      psTerm, aTerm, conjBeams);
-
-	  // Vector<double> dummyUVScale;
-	  // Matrix<double> dummyvbFreqSel;
-	  // AWConvFunc::makeConvFunction2(cfCacheName,
-	  // 				dummyUVScale, uvOffset,	dummyvbFreqSel,
-	  // 				*cfs2_l,*cfswt2_l,
-	  // 				psTerm,	aTerm, conjBeams);
 	}
 
       // Report some stats.
       double memUsed=cfs2_l->memUsage();
-      String unit(" KB");
-      memUsed = (int)(memUsed/1024.0+0.5);
+      String unit(" KB");  memUsed = (int)(memUsed/1024.0+0.5);
       if (memUsed > 1024) {memUsed /=1024; unit=" MB";}
-
-      LogIO log_l(LogOrigin("AWProjectFT2", "findConvFunction[R&D]"));
       log_l << "Convolution function memory footprint:"
 	    << (int)(memUsed) << unit << " out of a maximum of "
 	    << HostInfo::memoryTotal(true)/1024 << " MB" << LogIO::POST;

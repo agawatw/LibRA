@@ -81,7 +81,8 @@ namespace casa
 	coordSysFileName("cgrid_csys.rec"),coordSysKey("cgrid_csys"),
 	imInfoFileName("iminfo.rec"), imShapeKey("imshape"),
 	miscInfoFileName("miscInfo.rec"), miscInfoKey("miscInfo"),
-	coordSysRecFileName(), imInfoRecFileName(), miscInfoRecFileName()
+	coordSysRecFileName(), imInfoRecFileName(), miscInfoRecFileName(),
+	inMemory_p(false),isPersistent_p(false)
       {};
       //
       //------------------------------------------------------------------------
@@ -92,7 +93,8 @@ namespace casa
 	coordSysFileName("cgrid_csys.rec"),coordSysKey("cgrid_csys"),
 	imInfoFileName("iminfo.rec"), imShapeKey("imshape"),
 	miscInfoFileName("miscInfo.rec"), miscInfoKey("miscInfo"),
-	coordSysRecFileName(), imInfoRecFileName(), miscInfoRecFileName()
+	coordSysRecFileName(), imInfoRecFileName(), miscInfoRecFileName(),
+	inMemory_p(false),isPersistent_p(false)
       {
 	initPaths(targetPath);
       };
@@ -106,7 +108,8 @@ namespace casa
 	coordSysFileName("cgrid_csys.rec"),coordSysKey("cgrid_csys"),
 	imInfoFileName("iminfo.rec"), imShapeKey("imshape"),
 	miscInfoFileName("miscInfo.rec"), miscInfoKey("miscInfo"),
-	coordSysRecFileName(), imInfoRecFileName(), miscInfoRecFileName()
+	coordSysRecFileName(), imInfoRecFileName(), miscInfoRecFileName(),
+	inMemory_p(true),isPersistent_p(false)
       {
 	initPaths(targetPath);
       };
@@ -122,10 +125,17 @@ namespace casa
       //
       //------------------------------------------------------------------------
       //
+      bool isInMemory() {return inMemory_p;}
+      bool isPersistent() {return isPersistent_p;}
+      //------------------------------------------------------------------------
+      //
+      //
       void save()
       {
 	if (cimg_p == NULL)
-	  throw(ImageInformationSaveError("ImageInformation::save():  Use ImageInformation(ImageInterface&, String&) ctor to save image information"));
+	  throw(ImageInformationSaveError("ImageInformation::save():  "
+					  "Use ImageInformation(ImageInterface&, String&) "
+					  "ctor to save image information"));
 	//
 	// Save image coordinate system as a casacore::Record
 	//
@@ -155,6 +165,11 @@ namespace casa
 	    SynthesisUtils::writeRecord(miscInfoRecFileName,
 					miscinfo);
 	  }
+
+	// The info has been made persistent on the disk. The get*() functions
+	// can return the info from the persistent copy.
+	inMemory_p=true;
+	isPersistent_p=true;
       }
       //
       //------------------------------------------------------------------------
@@ -197,9 +212,10 @@ namespace casa
       //
       casacore::CoordinateSystem getCoordinateSystem()
       {
+	if (inMemory_p) return cimg_p->coordinates();
 	//
 	// Use the supplied filename as-is here.  The logic to
-	// modification to the name for reading as a Record or a Table
+	// modify the name for reading as a Record or a Table
 	// are in SynthesisUtils::read/writeRecord.  At this level,
 	// the interface is via casacore::Record only.
 	//
@@ -226,9 +242,10 @@ namespace casa
       //
       casacore::Vector<int> getImShape()
       {
+	if (inMemory_p) return cimg_p->shape().asVector();
 	//
 	// Use the supplied filename as-is here.  The logic to
-	// modification to the name for reading as a Record or a Table
+	// modify the name for reading as a Record or a Table
 	// are in SynthesisUtils::read/writeRecord.  At this level,
 	// the interface is via casacore::Record only.
 	//
@@ -243,9 +260,10 @@ namespace casa
       //
       casacore::TableRecord getMiscInfo()
       {
+	if (inMemory_p) return cimg_p->miscInfo();
 	//
 	// Use the supplied filename as-is here.  The logic to
-	// modification to the name for reading as a Record or a Table
+	// modify the name for reading as a Record or a Table
 	// are in SynthesisUtils::read/writeRecord.  At this level,
 	// the interface is via casacore::Record only.
 	//
@@ -265,6 +283,7 @@ namespace casa
       casacore::String imInfoFileName, imShapeKey;
       casacore::String miscInfoFileName,  miscInfoKey;
       casacore::String coordSysRecFileName, imInfoRecFileName, miscInfoRecFileName;
+      bool inMemory_p,isPersistent_p;
       //
       //------------------------------------------------------------------------
       //
