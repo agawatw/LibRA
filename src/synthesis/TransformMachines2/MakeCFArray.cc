@@ -59,6 +59,14 @@ namespace casa{
       Array<Complex> *convFuncV;
       CFCell *cfcell;
       //
+      // The following issue is handled now, by determining the
+      // largest CF in the HPG data structure Group and padding
+      // smaller CFs with zero. This allows all required CFs to be in
+      // the same group.  Leaving the comment below to jog the memory
+      // and inform how this is fixed in the code that calls this
+      // function.
+      //
+      //
       // Forcing pndx to 1 effectively disables squint correction.  This was required since the CFs
       // per pol may have different sizes (due to numerical noise).  CFs for all pol in this case can't
       // set in the same Group of a CFArray.
@@ -76,9 +84,9 @@ namespace casa{
       if (convFuncV == NULL)
 	throw(SynthesisFTMachineError("cfcell->getStorage() == null"));
       
-      // Load the CF if it not already loaded.  If a new CF is loaded,
-      // check if it needs to be rotated.
-      //      cerr << cfcell->fileName_p << " " << endl;
+      // Load the CF if it is not already loaded.  This should also work
+      // if the CFS (and CFCell) are in-memory already. If a new CF is
+      // loaded, check if it needs to be rotated.
       if (convFuncV->shape().product() == 0)
 	{
 	  Array<Complex>  tt=SynthesisUtils::getCFPixels(cfb.getCFCacheDir(), cfcell->fileName_p);
@@ -89,13 +97,13 @@ namespace casa{
 	  // No rotation necessary if the CF is rotationally symmetric
 	  // SB: Disabled for HPG testing.
 	  //
-	  // if (!(cfcell->isRotationallySymmetric_p))
-	  //   {
-	  //     CFCell *baseCFC=NULL;
-	  //     // Rotate only if the difference between CF PA and VB PA
-	  //     // is greater than paTolerance.
-	  //     SynthesisUtils::rotate2(vbPA, *baseCFC, *cfcell, paTolerance);
-	  //   }
+	  if (!(cfcell->isRotationallySymmetric_p))
+	    {
+	      CFCell *baseCFC=NULL;
+	      // Rotate only if the difference between CF PA and VB PA
+	      // is greater than paTolerance.
+	      SynthesisUtils::rotate2(vbPA, *baseCFC, *cfcell, paTolerance);
+	    }
 	  convFuncV = &(*cfcell->getStorage());
 	}
       //      cerr << convFuncV->shape() << " ";
@@ -218,7 +226,8 @@ namespace casa{
 			      const Int& nGridPol, const Int& nDataPol,
 			      const Vector<Int>& polMap,
 			      Vector<Int>& wNdxList,
-			      Vector<Int>& spwNdxList)
+			      Vector<Int>& spwNdxList,
+			      double paTolerance)
     {
       LogIO log_l(LogOrigin("MakeCFArray","makeRWDCFA_p"));
       
@@ -382,7 +391,7 @@ namespace casa{
       std::shared_ptr<hpg::RWDeviceCFArray> rwDCFArray = hpg::get_value(std::move(err_or_val));
       //-------------------------------------------------------------------------------------------------
 
-      double paTolerance = 360.0;
+      //double paTolerance = 360.0;
       iGrp=0; // HPG Group index
 
       // cerr << endl << "--------------------------------" << endl;
