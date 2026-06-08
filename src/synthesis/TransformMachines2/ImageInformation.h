@@ -101,7 +101,7 @@ namespace casa
       //
       //------------------------------------------------------------------------
       // Constructor to write and read records saved by this class
-      //
+      // This creates an in-memory-only object
       ImageInformation(casacore::ImageInterface<T>& cimg,
 		       const casacore::String& targetPath):
 	cimg_p(&cimg),
@@ -128,7 +128,7 @@ namespace casa
       bool isInMemory() {return inMemory_p;}
       bool isPersistent() {return isPersistent_p;}
       //------------------------------------------------------------------------
-      //
+      // Saving makes the object both in memory and persistent
       //
       void save()
       {
