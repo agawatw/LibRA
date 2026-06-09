@@ -108,7 +108,7 @@ void UI(bool restart, int argc, char **argv, bool interactive,
       watchPoints["fillcf"]=exposedKeys;
 
       //----------------------------------------------
-      // None of the following keysword values are used in
+      // None of the following keyword values are used in
       // mode=fillcf.  So, hide them.
       {
 	exposedKeys=
