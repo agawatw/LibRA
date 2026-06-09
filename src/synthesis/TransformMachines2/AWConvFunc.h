@@ -120,11 +120,13 @@ namespace casa { //# NAMESPACE CASA - BEGIN
     virtual int getVisParams(const VisBuffer2& vb,const casacore::CoordinateSystem& skyCoord=casacore::CoordinateSystem())
     {return aTerm_p->getVisParams(vb,skyCoord);};
     virtual void setPolMap(const casacore::Vector<casacore::Int>& polMap) {aTerm_p->setPolMap(polMap);};
-    //    virtual void setFeedStokes(const casacore::Vector<casacore::Int>& feedStokes) {aTerm_p->setFeedStokes(feedStokes);};
+
     virtual casacore::Bool findSupport(casacore::Array<casacore::Complex>& func, casacore::Float& threshold,casacore::Int& origin, casacore::Int& R);
+
+    // Required to make this a non-abstract inhereted class.
     virtual casacore::Vector<casacore::Double> findPointingOffset(const casacore::ImageInterface<casacore::Complex>& /*image*/,
 					      const VisBuffer2& /*vb*/) {casacore::Vector<casacore::Double> tt(2); tt=0;return tt;};
-    //virtual void prepareConvFunction(const VisBuffer2& vb, VBRow2CFBMapType& cfs);
+
     virtual void prepareConvFunction(const VisBuffer2& vb, VB2CFBMap& cfs);
     casacore::Int mapAntIDToAntType(const casacore::Int& ant) {return aTerm_p->mapAntIDToAntType(ant);};
 
@@ -135,8 +137,6 @@ namespace casa { //# NAMESPACE CASA - BEGIN
     virtual casacore::Vector<casacore::Double> makeWValList(const casacore::Double &dW, const casacore::Int &nW);
 
     virtual void setMiscInfo(const casacore::RecordInterface& params);
-    virtual casacore::Matrix<casacore::Double> getFreqRangePerSpw(const VisBuffer2& vb);
-
 
 
     //
