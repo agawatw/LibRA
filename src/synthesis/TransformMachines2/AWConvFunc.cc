@@ -26,33 +26,31 @@
 //#
 //# $Id$
 //
-#include <synthesis/TransformMachines2/Utils.h>
-
 #include <synthesis/TransformMachines2/AWConvFunc.h>
 #include <synthesis/TransformMachines2/AWProjectFT.h>
-#include <synthesis/TransformMachines/SynthesisError.h>
 #include <casacore/images/Images/ImageInterface.h>
 #include <synthesis/TransformMachines2/Utils.h>
 #include <synthesis/TransformMachines/BeamCalc.h>
-#include <synthesis/TransformMachines2/CFStore.h>
 #include <synthesis/TransformMachines2/CFStore2.h>
 #include <synthesis/TransformMachines2/VB2CFBMap.h>
 #include <synthesis/TransformMachines2/PSTerm.h>
 #include <synthesis/TransformMachines2/WTerm.h>
 #include <synthesis/TransformMachines2/ATerm.h>
-#include <synthesis/TransformMachines2/VLACalcIlluminationConvFunc.h>
 #include <synthesis/TransformMachines2/ConvolutionFunction.h>
 #include <synthesis/TransformMachines2/PolOuterProduct.h>
 #include <synthesis/TransformMachines2/ImageInformation.h>
 #include <casacore/coordinates/Coordinates/DirectionCoordinate.h>
-#include <casacore/coordinates/Coordinates/LinearCoordinate.h>
 #include <casacore/coordinates/Coordinates/SpectralCoordinate.h>
 #include <casacore/coordinates/Coordinates/StokesCoordinate.h>
 #include <casacore/casa/System/ProgressMeter.h>
 #include <casacore/lattices/LatticeMath/LatticeFFT.h>
-#include <casacore/casa/Utilities/CompositeNumber.h>
-#include <casacore/casa/OS/Directory.h>
-#include <casacore/casa/OS/Timer.h>
+//#include <synthesis/TransformMachines/SynthesisError.h>
+//#include <synthesis/TransformMachines2/CFStore.h>
+//#include <synthesis/TransformMachines2/VLACalcIlluminationConvFunc.h>
+//#include <casacore/coordinates/Coordinates/LinearCoordinate.h>
+//#include <casacore/casa/Utilities/CompositeNumber.h>
+//#include <casacore/casa/OS/Directory.h>
+//#include <casacore/casa/OS/Timer.h>
 #include <ostream>
 #ifdef _OPENMP
 #include <omp.h>
@@ -61,10 +59,12 @@
 #define MAX_FREQ 1e30
 
 using namespace casacore;
-namespace casa{
-  namespace refim{
-using namespace casacore;
-using namespace casa::vi;
+namespace casa
+{
+  namespace refim
+  {
+    using namespace casacore;
+    using namespace casa::vi;
 
 AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
 			 const casacore::CountedPtr<PSTerm> psTerm,
@@ -553,56 +553,6 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
     return wValues;
   }
 
-  // This methods is depcricated.  Keeping it here since it *might*
-  // have use sometime later and therefore want to push it on to SVN
-  // before deleting it form the active version of this file.
-  Matrix<Double> AWConvFunc::getFreqRangePerSpw(const VisBuffer2& vb)
-  {
-    //
-    // Find the total effective bandwidth
-    //
-    Cube<Double> fminmax;
-    Double fMax=0, fMin=MAX_FREQ;
-    ArrayColumn<Double> spwCol=vb.subtableColumns().spectralWindow().chanFreq();
-    fminmax.resize(spwChanSelFlag_p.shape()(0),spwChanSelFlag_p.shape()(1),2);
-    fminmax=0;
-    for (uInt ims=0; ims<spwChanSelFlag_p.shape()(0); ims++)
-      for(uInt ispw=0; ispw<spwChanSelFlag_p.shape()(1); ispw++)
-	{
-	  fMax=0, fMin=MAX_FREQ;
-	  for(uInt ichan=0; ichan<spwChanSelFlag_p.shape()(2); ichan++)
-	    {
-	      if (spwChanSelFlag_p(ims,ispw,ichan)==1)
-		{
-		  Slicer slicer(IPosition(1,ichan), IPosition(1,1));
-		  Vector<Double> freq = spwCol(ispw)(slicer);
-		  if (freq(0) < fMin) fMin = freq(0);
-		  if (freq(0) > fMax) fMax = freq(0);
-		}
-	    }
-	  fminmax(ims,ispw,0)=fMin;
-	  fminmax(ims,ispw,1)=fMax;
-	}
-
-    Matrix<Double> freqRangePerSpw(fminmax.shape()(1),2);
-    for (uInt j=0;j<fminmax.shape()(1);j++) // SPW
-      {
-	freqRangePerSpw(j,0)=0;
-	freqRangePerSpw(j,1)=MAX_FREQ;
-	for (uInt i=0;i<fminmax.shape()(0);i++) //MSes
-	  {
-	    if (freqRangePerSpw(j,0) < fminmax(i,j,0)) freqRangePerSpw(j,0)=fminmax(i,j,0);
-	    if (freqRangePerSpw(j,1) > fminmax(i,j,1)) freqRangePerSpw(j,1)=fminmax(i,j,1);
-	  }
-      }
-    for(uInt i=0;i<freqRangePerSpw.shape()(0);i++)
-      {
-	if (freqRangePerSpw(i,0) == MAX_FREQ) freqRangePerSpw(i,0)=-1;
-	if (freqRangePerSpw(i,1) == 0) freqRangePerSpw(i,1)=-1;
-      }
-
-    return freqRangePerSpw;
-  }
   //
   //----------------------------------------------------------------------
   // Given the VB and the uv-grid, make a list of frequency values to
@@ -1887,21 +1837,6 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
       }
     return os;
   }
-  //
-  //----------------------------------------------------------------------
-  //
-  // Vector<Vector<Double> > AWConvFunc::findPointingOffset(const ImageInterface<Complex>& image,
-  // 						const VisBuffer2& vb, const Bool& doPointing)
-  // {
-  //   Assert(po_p.null()==False && "Pointingoffset call has not been initialized in AWProjectFT call being made");
-  //       return po_p->findPointingOffset(image,vb,doPointing);
-  //   //    if (!doPointing)
-  //   //      {cerr<<"AWCF: Using mosaic pointing \n";return po_p->findMosaicPointingOffset(image,vb);}
-  //   //    else
-  //   //      {cerr<<"AWCF: Using antenna pointing table \n";return po_p->findAntennaPointingOffset(image,vb);}
-  // }
 
-
-
-};
+  };
 };
