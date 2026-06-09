@@ -171,8 +171,20 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 				      cgrid, nW, pa, dpa, uvScale,
 				      uvOffset, cfCacheName);
 
-	  // cfs2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","", true);
-	  // cfswt2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","WT",true);
+	  //
+	  // Save the contents of the in-memory CFStore on the disk.
+	  //
+	  // [07Jan2024] In the dryrun mode, only the meta info is
+	  // written (as casacore::Records converted to
+	  // casacore::Tables).  Writing these with multi-threading
+	  // seems to work.  The bool parameter below is therefore set
+	  // to true (it is false in the default interface).
+	  //
+	  if (!cfCacheName.empty())
+	    {
+	      cfs2_l->makePersistent(cfCacheName.c_str(),"","", true);
+	      cfswt2_l->makePersistent(cfCacheName.c_str(),"","WT",true);
+	    }
 	}
       else
 	{

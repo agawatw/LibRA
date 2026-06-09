@@ -214,25 +214,10 @@ namespace libracore
 			    *cfs2_l, *cfswt2_l,
 			    fillCF);
     //
-    // AWConvFunc::makeConvFunction() does not make the memory
-    // model (CFStore) persistent.  So save the contents of the
-    // CFStore on the disk.
+    // AWConvFunc::makeConvFunction() does not make the memory model
+    // (CFStore) persistent. CFSes can be made persistent via
+    // CFStore2::makePersistent() in the client code.
     //
-    // [07Jan2024] In the dryrun mode, only the meta info is
-    // written as casacore::Records converted to
-    // casacore::Tables.  Writing these with multi-threadings
-    // seems to be work.  The bool parameter is therefore set to
-    // true (it is false in the default interface).
-    // cfs2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","", Quantity(pa,"rad"),Quantity(dpa,"rad"),0,0,true);
-    // cfswt2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","WT",Quantity(pa,"rad"),Quantity(dpa,"rad"),0,0,true);
-    
-    if (!cfCacheName.empty())
-      {
-	// cfs2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","", true);
-	// cfswt2_l->makePersistent(cfCacheObj_l->getCacheDir().c_str(),"","WT",true);
-	cfs2_l->makePersistent(cfCacheName.c_str(),"","", true);
-	cfswt2_l->makePersistent(cfCacheName.c_str(),"","WT",true);
-      }
   }
   //
   //--------------------------------------------------------------------------
