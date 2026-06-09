@@ -134,11 +134,12 @@ namespace libracore
     Vector<double> dummyUVScale;
     Matrix<double> dummyvbFreqSel;
     
+    bool makePersistent=false; // Keep it in-memory
     AWConvFunc::makeConvFunction2(cfCacheName,
-				  dummyUVScale, uvOffset,	dummyvbFreqSel,
+				  dummyUVScale, uvOffset,dummyvbFreqSel,
 				  *cfs2_l,*cfswt2_l,
-				  psTerm,	aTerm, conjBeams);
-    
+				  psTerm,aTerm, conjBeams,
+				  makePersistent);
     
     // Report some stats.
     double memUsed=cfs2_l->memUsage();

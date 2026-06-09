@@ -171,20 +171,6 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 				      cgrid, nW, pa, dpa, uvScale,
 				      uvOffset, cfCacheName);
 
-	  //
-	  // Save the contents of the in-memory CFStore on the disk.
-	  //
-	  // [07Jan2024] In the dryrun mode, only the meta info is
-	  // written (as casacore::Records converted to
-	  // casacore::Tables).  Writing these with multi-threading
-	  // seems to work.  The bool parameter below is therefore set
-	  // to true (it is false in the default interface).
-	  //
-	  if (!cfCacheName.empty())
-	    {
-	      cfs2_l->makePersistent(cfCacheName.c_str(),"","", true);
-	      cfswt2_l->makePersistent(cfCacheName.c_str(),"","WT",true);
-	    }
 	}
       else
 	{
@@ -200,7 +186,25 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 				      cfs2_l, cfswt2_l, uvOffset,
 				      psTerm, aTerm, conjBeams);
 	}
-
+      //
+      // Save the contents of the in-memory CFStore on the disk.
+      // Until this point, CFSes, in both settings of the "mode"
+      // keyword, are in-memory only.
+      //
+      // [07Jan2024] In the dryrun mode, only the meta info is
+      // written (as casacore::Records converted to
+      // casacore::Tables).  Writing these with multi-threading
+      // seems to work.  The bool parameter below is therefore set
+      // to true (it is false in the default interface).
+      //
+      if (!cfCacheName.empty())
+	{
+	  cfs2_l->makePersistent(cfCacheName.c_str(),"","", true);
+	  cfswt2_l->makePersistent(cfCacheName.c_str(),"","WT",true);
+	}
+      //
+      //------------------------------------------------------------------------------------------------------
+      //
       // Report some stats.
       double memUsed=cfs2_l->memUsage();
       String unit(" KB");  memUsed = (int)(memUsed/1024.0+0.5);

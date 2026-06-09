@@ -1564,7 +1564,8 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
 				     CFStore2& cfwts2,
 				     const Bool psTermOn,
 				     const Bool aTermOn,
-				     const Bool conjBeams)
+				     const Bool conjBeams,
+				     const bool makePersistent)
   {
     LogIO log_l(LogOrigin("AWConvFunc2", "makeConvFunction2[R&D]"));
     Int convSize, convSampling;//, polInUse;
@@ -1811,11 +1812,11 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
     //
     // Make the CFStores persistent.
     //
-    cfs2.makePersistent(cfCachePath.c_str());
-    cfwts2.makePersistent(cfCachePath.c_str(),"","WT");
-    // Directory dir(uvGridDiskImage);
-    // dir.removeRecursive(false);
-    // dir.remove();
+    if (makePersistent && !cfCachePath.empty())
+      {
+	cfs2.makePersistent(cfCachePath.c_str());
+	cfwts2.makePersistent(cfCachePath.c_str(),"","WT");
+      }
   }
   //
   //----------------------------------------------------------------------
