@@ -271,9 +271,17 @@ namespace casa
 	casacore::CountedPtr<casa::refim::CFStore2> cfs2_l, cfswt2_l;
 
 	if ((whichCFS == MAKE_CFCFS) || (whichCFS == MAKE_BOTHCFS))
-	  cfs2_l = casacore::CountedPtr<CFStore2>(&(cfCacheObj->memCache2_p)[0],false);
+	  {
+	    cfs2_l = casacore::CountedPtr<CFStore2>(&(cfCacheObj->memCache2_p)[0],false);
+	    if (cfs2_l == nullptr)
+	      throw(AipsError("CFCacheHelper::constructCFS(): CFStore pointer for CFs is a null pointer"));
+	  }
 	if ((whichCFS == MAKE_WTCFS) || (whichCFS == MAKE_BOTHCFS))
-	  cfswt2_l =  casacore::CountedPtr<CFStore2>(&cfCacheObj->memCacheWt2_p[0],false);
+	  {
+	    cfswt2_l =  casacore::CountedPtr<CFStore2>(&cfCacheObj->memCacheWt2_p[0],false);
+	    if (cfswt2_l == nullptr)
+	      throw(AipsError("CFCacheHelper::constructCFS(): CFStore pointer for WTCFs is a null pointer"));
+	  }
 
 	return std::make_tuple(cfs2_l, cfswt2_l);
       }

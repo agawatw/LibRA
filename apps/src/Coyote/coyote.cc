@@ -107,7 +107,7 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       // CFStore objects from it (the CFC in-memory model).
       //
       CountedPtr<refim::CFCache> cfCacheObj_l = new refim::CFCache();
-      CountedPtr<casa::refim::CFStore2> cfs2_l, cfswt2_l;
+      CountedPtr<casa::refim::CFStore2> cfs2_l=nullptr, cfswt2_l=nullptr;
       try
 	{
 	  std::tie(cfs2_l, cfswt2_l) =

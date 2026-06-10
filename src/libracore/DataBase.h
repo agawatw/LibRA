@@ -264,7 +264,8 @@ public:
     }
 
     log_l << "Selected SPW ID list: ";
-    for (auto id:spwidList) log_l << id << " "; log_l << LogIO::POST;
+    for (auto id:spwidList) log_l << id << " ";
+    log_l << LogIO::POST;
     // Global VB (seems to be needed for multi-threading)
     vb_l=vi2_l->getVisBuffer();
   };
