@@ -28,7 +28,7 @@
 #include <libracore/rWeightor.h>
 #include <libracore/DataBase.h>
 #include <libracore/MakeComponents.h>
-#include <libracore/CFCacheHelper.h>
+#include <synthesis/TransformMachines2/CFCacheHelper.h>
 #include <coyote.h>
 //
 //--------------------------------------------------------------------------
@@ -111,7 +111,7 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       try
 	{
 	  std::tie(cfs2_l, cfswt2_l) =
-	    libracore::constructCFS(cfCacheObj_l.get(), cfCacheName,
+	    casa::refim::SynthesisUtils::constructCFS(cfCacheObj_l.get(), cfCacheName,
 				    cfList, wtCFList, mode, pa, dpa);
 	}
       catch (CFSupportZero &e)
@@ -127,7 +127,7 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       //
       Vector<int> imSize(2,NX);
       Vector<double> uvOffset={(double)imSize[0],(double)imSize[1],0.0};
-      
+
       if (mode=="dryrun")
 	{
 	  // Setup and apply makeConvFunction() for mode=dryrun and
@@ -167,7 +167,7 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  imInfo.save();
 
 	  //-------------------------------------------------------------------------------------------------
-	  libracore::makeCFS_inmemory(db, cfs2_l, cfswt2_l, *awcf_l,
+	  casa::refim::SynthesisUtils::makeCFS_inmemory(db, cfs2_l, cfswt2_l, *awcf_l,
 				      cgrid, nW, pa, dpa, uvScale,
 				      uvOffset, cfCacheName);
 
@@ -182,7 +182,7 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  // CF (the IsFilled=1 entry in CFS*/miscInfo.rec) will be
 	  // left untouched.
 	  //
-	  libracore::fillCFS_inmemory(cfCacheName,
+	  casa::refim::SynthesisUtils::fillCFS_inmemory(cfCacheName,
 				      cfs2_l, cfswt2_l, uvOffset,
 				      psTerm, aTerm, conjBeams);
 	}
