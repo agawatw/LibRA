@@ -110,9 +110,11 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       CountedPtr<casa::refim::CFStore2> cfs2_l=nullptr, cfswt2_l=nullptr;
       try
 	{
-	  std::tie(cfs2_l, cfswt2_l) =
+	  std::exception_ptr excpt;
+	  std::tie(cfs2_l, cfswt2_l, excpt) =
 	    casa::refim::SynthesisUtils::constructCFS(cfCacheObj_l.get(), cfCacheName,
 				    cfList, wtCFList, mode, pa, dpa);
+	  if (excpt != nullptr) std::rethrow_exception(excpt);
 	}
       catch (CFSupportZero &e)
       	{
@@ -122,6 +124,10 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       	  // resolution code.
       	  log_l << e.what() << LogIO::POST;
       	}
+      catch (CFCIsEmpty &e)
+	{
+	  log_l << "A new CFCache will be made" << LogIO::POST;
+	}
       //
       //-------------------------------------------------------------------------------------------------
       //

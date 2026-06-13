@@ -181,8 +181,8 @@ namespace casa
       // Options for whichCFC are MAKE_CFCFS, MAKE_WTCFS and MAKE_BOTHCFS
       //
       std::tuple<CountedPtr<casa::refim::CFStore2>,
-		 CountedPtr<casa::refim::CFStore2>>
-      //  constructCFS(CountedPtr<refim::CFCache> cfCacheObj,
+		 CountedPtr<casa::refim::CFStore2>,
+		 std::exception_ptr>
       constructCFS(refim::CFCache* cfCacheObj,
 		   const std::string& cfCacheName,
 		   const std::vector<std::string>& cfList,
@@ -199,6 +199,7 @@ namespace casa
 	//      CountedPtr<refim::CFCache> cfCacheObj_l = new refim::CFCache();
 	// try
 	//   {
+	std::exception_ptr CFCIsEmptyPtr_l = nullptr;
 	if (cfCacheObj == nullptr)
 	  throw(AipsError("CFCacheHelper::constructCFS(): cfCacheObj is a null pointer"));
 
@@ -230,11 +231,9 @@ namespace casa
 	      }
 	    catch (CFCIsEmpty& e)
 	      {
-		// Ignore the exception.  Empty CFs will be created in
-		// the section below after the CFStore objects (which
-		// encapsulate the in-memory model of the CFCache) are
-		// derived.
-		//cerr << "The CFCache (\"" << cfCacheName << "\") is empty.  Building a new one." << LogIO::POST;
+		// Capture the exception and return the pointer to it.
+		// The resolution can be done up the call stack.
+		CFCIsEmptyPtr_l = std::current_exception();
 	      }
 	  }
 	else if (mode == "fillcf")
@@ -287,7 +286,7 @@ namespace casa
 	      throw(AipsError("CFCacheHelper::constructCFS(): CFStore pointer for WTCFs is a null pointer"));
 	  }
 
-	return std::make_tuple(cfs2_l, cfswt2_l);
+	return std::make_tuple(cfs2_l, cfswt2_l,CFCIsEmptyPtr_l);
       }
 
     }; // End SynthesisUtils namespace

@@ -556,10 +556,8 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       CountedPtr<casa::refim::CFStore2> cfs2_l;
       if (!cfc.null())
 	{
-	  if (doPSF || (imagingMode=="weight"))
-	    cfs2_l =  CountedPtr<casa::refim::CFStore2>(&cfc->memCacheWt2_p[0],false);//new CFStore2;
-	  else
-	    cfs2_l = CountedPtr<casa::refim::CFStore2>(&(cfc->memCache2_p)[0],false);//new CFStore2;
+	  if (doPSF || (imagingMode=="weight")) cfs2_l =  cfc->getWTCFS();
+	  else cfs2_l = cfc->getCFS();
 	}
 
       Vector<int> chanMap, polMap;

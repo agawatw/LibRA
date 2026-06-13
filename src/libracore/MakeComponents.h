@@ -40,6 +40,7 @@
 #include <synthesis/TransformMachines2/AWProjectWBFTHPG.h>
 #include <synthesis/TransformMachines2/MakeCFArray.h>
 #include <synthesis/TransformMachines2/ThreadCoordinator.h>
+#include <synthesis/TransformMachines2/CFCacheHelper.h>
 //#include <hpg/hpg.hpp>
 
 
@@ -137,7 +138,17 @@ createAWPFTMachine(const String ftmName,
   // This pointer is set in the FTMachine base class. It can be
   // initialized later, which here is done after constructing the FTM.
   //
-  CountedPtr<refim::CFCache> cfCacheObj;
+  CountedPtr<refim::CFCache> cfCacheObj(new refim::CFCache());
+  // Initialize the CFC and construct the in-memory CFSes.  The CFSes
+  // can be extracted from CFC at any point after this call.
+  std::vector<std::string> blank={""};
+  auto ret =
+    casa::refim::SynthesisUtils::constructCFS(cfCacheObj.get(), cfCache,
+					      blank, blank,//Not used with dryrun
+					      "dryrun", 360.0,//Not used with dryrun
+					      400.0 // Should this be computePAStep?
+					      );
+  if (std::get<2>(ret) != nullptr) std::rethrow_exception(std::get<2>(ret));
   
   //
   // Finally construct the FTMachine with the CFCache, ConvFunc and
@@ -162,35 +173,12 @@ createAWPFTMachine(const String ftmName,
   else if (imagingMode=="psf")  {theFT->setFTMType(casa::refim::FTMachine::PSF);}
   else if (imagingMode=="snrpsf")  {theFT->setFTMType(casa::refim::FTMachine::SNRPSF);}
 
-  cfCacheObj = new refim::CFCache();
-  cfCacheObj->setCacheDir(cfCache.data());
-  cfCacheObj->setLazyFill(refim::SynthesisUtils::getenv("CFCache.LAZYFILL",1)==1);
-  cfCacheObj->setWtImagePrefix(imageNamePrefix.c_str());
-  //cfCacheObj->initCache2(); // This loads, both CFS* and WTCFS* CFs.  In roadrunner, only one of them required (depending on the "imagingmode" parameter)
-  if (theFT->ftmType()   == casa::refim::FTMachine::PSF 
-      || theFT->ftmType()== casa::refim::FTMachine::WEIGHT)
-    cfCacheObj->initCache2(false, 400.0, -1.0,casacore::String("WTCFS*")); // This would load only WTCFS* CFs
-  else
-    cfCacheObj->initCache2(false, 400.0, -1.0,casacore::String("CFS*")); // This would load only CFS* CFs
-  // {
-  //   CountedPtr<casa::refim::CFBuffer> cfb_l = cfCacheObj->memCache2_p[0].getCFBuffer(0,0);
-  //   cfb_l->show("cfb: ");
-  // }
-  
   theFT->setCFCache(cfCacheObj);
   
   
   Quantity rotateOTF(rotatePAStep,"deg");
   static_cast<refim::AWProjectFT &>(*theFT).setObservatoryLocation(observatoryLocation);
   static_cast<refim::AWProjectFT &>(*theFT).setPAIncrement(Quantity(computePAStep,"deg"),rotateOTF);
-
-  // Send in Freq info. Reference code for enabling arbitrary
-  // freq. resolution for wbawp imaging (currently it is set to SPW
-  // resolution).
-  //
-  // os << "Sending frequency selection information " <<  mssFreqSel_p  <<  " to AWP FTM." << LogIO::POST;
-  // theFT->setSpwFreqSelection( mssFreqSel_p );
-  // theIFT->setSpwFreqSelection( mssFreqSel_p );
 
   std::tuple<CountedPtr<refim::CFCache>,CountedPtr<refim::VisibilityResamplerBase>> retup = std::make_tuple(cfCacheObj,visResampler); 
 
