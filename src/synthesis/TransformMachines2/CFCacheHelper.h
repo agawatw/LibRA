@@ -64,7 +64,8 @@ namespace casa
 			    Vector<double>& uvOffset,
 			    const bool& psTerm,
 			    const bool& aTerm,
-			    const bool& conjBeams);
+			    const bool& conjBeams,
+			    ImageInformation<Complex> imInfo=ImageInformation<Complex>());
 
       void makeCFS_inmemory(DataBase& db,
 			    CountedPtr<casa::refim::CFStore2> cfs2_l,

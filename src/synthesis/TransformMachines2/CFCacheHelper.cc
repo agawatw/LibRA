@@ -76,7 +76,8 @@ namespace casa
 			    Vector<double>& uvOffset,
 			    const bool& psTerm,
 			    const bool& aTerm,
-			    const bool& conjBeams)
+			    const bool& conjBeams,
+			    ImageInformation<Complex> imInfo)
       {
 	//
 	// mode="fillcf" case.  The list of CFs in the CFC are
@@ -94,6 +95,7 @@ namespace casa
 				      dummyUVScale, uvOffset,dummyvbFreqSel,
 				      *cfs2_l,*cfswt2_l,
 				      psTerm,aTerm, conjBeams,
+				      imInfo,
 				      makePersistent);
 
 	// Report some stats.

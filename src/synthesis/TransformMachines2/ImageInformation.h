@@ -98,6 +98,18 @@ namespace casa
       {
 	initPaths(targetPath);
       };
+      //------------------------------------------------------------------------
+      // Constructor to write and read records saved by this class
+      // This creates an in-memory-only object
+      ImageInformation(casacore::ImageInterface<T>& cimg):
+	cimg_p(&cimg),
+	coordSysFileName("cgrid_csys.rec"),coordSysKey("cgrid_csys"),
+	imInfoFileName("iminfo.rec"), imShapeKey("imshape"),
+	miscInfoFileName("miscInfo.rec"), miscInfoKey("miscInfo"),
+	coordSysRecFileName(), imInfoRecFileName(), miscInfoRecFileName(),
+	inMemory_p(true),isPersistent_p(false)
+      {
+      };
       //
       //------------------------------------------------------------------------
       // Constructor to write and read records saved by this class
@@ -130,6 +142,11 @@ namespace casa
       //------------------------------------------------------------------------
       // Saving makes the object both in memory and persistent
       //
+      void save(const casacore::String& targetPath)
+      {
+	initPaths(targetPath);
+	save();
+      }
       void save()
       {
 	if (cimg_p == NULL)

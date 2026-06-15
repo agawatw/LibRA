@@ -169,8 +169,8 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  // etc.), save in a record and make it persistent in the
 	  // CFCache.
 	  //
-	  ImageInformation<Complex> imInfo(cgrid,casacore::String(cfCacheName));
-	  imInfo.save();
+	  ImageInformation<Complex> imInfo(cgrid);
+	  imInfo.save(casacore::String(cfCacheName));
 
 	  //-------------------------------------------------------------------------------------------------
 	  casa::refim::SynthesisUtils::makeCFS_inmemory(db, cfs2_l, cfswt2_l, *awcf_l,
@@ -188,9 +188,17 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  // CF (the IsFilled=1 entry in CFS*/miscInfo.rec) will be
 	  // left untouched.
 	  //
+	  // Construct the ImageInformation object. It will be used
+	  // as-is if a constructor that loads the complex grid info
+	  // is used.  If it is not loaded with the grid info., or not
+	  // supplied as an argument, an attempt will be made in
+	  // fillCFS_inmemory() to load the info from the cfCacheName.
+	  //
+	  ImageInformation<Complex> imInfo;
 	  casa::refim::SynthesisUtils::fillCFS_inmemory(cfCacheName,
-				      cfs2_l, cfswt2_l, uvOffset,
-				      psTerm, aTerm, conjBeams);
+							cfs2_l, cfswt2_l, uvOffset,
+							psTerm, aTerm, conjBeams,
+							imInfo);
 	}
       //
       // Save the contents of the in-memory CFStore on the disk.
