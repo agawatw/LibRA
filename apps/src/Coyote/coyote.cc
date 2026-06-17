@@ -106,13 +106,13 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       // Instantiate the CFCache object, initialize it and extract the
       // CFStore objects from it (the CFC in-memory model).
       //
-      CountedPtr<refim::CFCache> cfCacheObj_l = new refim::CFCache();
+      CountedPtr<refim::CFCache> cfCacheObj_l = new refim::CFCache(cfCacheName.c_str());
       CountedPtr<casa::refim::CFStore2> cfs2_l=nullptr, cfswt2_l=nullptr;
       try
 	{
 	  std::exception_ptr excpt;
 	  std::tie(cfs2_l, cfswt2_l, excpt) =
-	    casa::refim::SynthesisUtils::constructCFS(cfCacheObj_l.get(), cfCacheName,
+	    casa::refim::SynthesisUtils::constructCFS(cfCacheObj_l.get(), //get the raw pointer
 				    cfList, wtCFList, mode, pa, dpa);
 	  if (excpt != nullptr) std::rethrow_exception(excpt);
 	}

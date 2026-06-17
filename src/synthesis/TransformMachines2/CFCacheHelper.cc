@@ -186,7 +186,6 @@ namespace casa
 		 CountedPtr<casa::refim::CFStore2>,
 		 std::exception_ptr>
       constructCFS(refim::CFCache* cfCacheObj,
-		   const std::string& cfCacheName,
 		   const std::vector<std::string>& cfList,
 		   const std::vector<std::string>& wtCFList,
 		   const std::string& mode,
@@ -198,14 +197,9 @@ namespace casa
 	// Instantiate the CFCache object, initialize it and extract the
 	// CFStore objects from it (the CFC in-memory model).
 	//
-	//      CountedPtr<refim::CFCache> cfCacheObj_l = new refim::CFCache();
-	// try
-	//   {
 	std::exception_ptr CFCIsEmptyPtr_l = nullptr;
 	if (cfCacheObj == nullptr)
 	  throw(AipsError("CFCacheHelper::constructCFS(): cfCacheObj is a null pointer"));
-
-	cfCacheObj->setCacheDir(cfCacheName.data());
 
 	if (mode == "dryrun")
 	  {
@@ -253,8 +247,8 @@ namespace casa
 	    int verbose=0;
 	    cfCacheObj->setLazyFill(refim::SynthesisUtils::getenv("CFCache.LAZYFILL",1)==1);
 
-	    cfCacheObj->initCacheFromList2(cfCacheName,
-					   casacore::Vector<casacore::String>(cfList), //cfNames,
+	    cfCacheObj->initCacheFromList2(std::string(cfCacheObj->getCacheDir().c_str()),//cfCacheName,
+					   casacore::Vector<casacore::String>(cfList),
 					   casacore::Vector<casacore::String>(wtCFList),
 					   pa,dpa,
 					   verbose);

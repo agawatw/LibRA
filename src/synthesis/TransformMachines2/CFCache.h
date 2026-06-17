@@ -154,7 +154,7 @@ namespace casa { //# NAMESPACE CASA - BEGIN
       memCache2_p(), memCacheWt2_p(),memCache_p(), memCacheWt_p(), 
       cfCacheTable_p(), XSup(), YSup(), paList(), 
       paList_p(), key2IndexMap(),
-      Dir(""), WtImagePrefix(""), cfPrefix(cfDir), aux("aux.dat"), paCD_p(), avgPBReady_p(false),
+      Dir(cfDir), WtImagePrefix(""), cfPrefix(cfDir), aux("aux.dat"), paCD_p(), avgPBReady_p(false),
       avgPBReadyQualifier_p(""), OTODone_p(false), loadPixBuf_p(casacore::True)
     {};
     CFCache& operator=(const CFCache& other);

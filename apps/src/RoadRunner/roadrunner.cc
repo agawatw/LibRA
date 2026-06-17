@@ -103,12 +103,11 @@ void CFServer(libracore::ThreadCoordinator& thcoord,
 	      casacore::CountedPtr<casa::refim::CFStore2>& cfs2_l,
 	      std::vector<int>& spwidList,
 	      std::vector<double>& spwRefFreqList,
-	      int& nDataPol,
-	      LogIO& os)
+	      int& nDataPol)
 {
   try
     {
-      os.origin(LogOrigin("roadrunner","CFServer"));
+      LogIO os(LogOrigin("roadrunner","CFServer"));
       for(auto ispw : spwidList)
 	{
 	  os << ".................CFServer................" << LogIO::POST;
@@ -188,7 +187,7 @@ readMNdxText(const string& fileName)
   if (!ifs)
     throw(AipsError(String("Error in reading file "+fileName)));
 
-  auto split = [] (const std::string &s) -> std::vector<int> 
+  auto split = [] (const std::string &s) -> std::vector<int>
     {
      std::vector<int> elems;
      std::istringstream iss(s);
@@ -406,6 +405,27 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       }
       // The scope below has the scientific code. That's where runtime
       // exceptions will happen.  So enclose it in a try-catch clause.
+      //---------------------------------------------------------------------------------------
+      // Construct the CFCache and CFSes.
+      //
+      CountedPtr<refim::CFCache> cfc(new refim::CFCache(cfCache.c_str()));
+
+      casa::refim::SynthesisUtils::CFCHelperCodes whichCFS=casa::refim::SynthesisUtils::CFCHelperCodes::MAKE_CFCFS;
+      if (imagingMode == "psf" || imagingMode=="weight" )
+	whichCFS=casa::refim::SynthesisUtils::CFCHelperCodes::MAKE_WTCFS;
+
+      // Initialize the CFC and construct the in-memory CFSes.  The CFSes
+      // can be extracted from CFC at any point after this call.
+      std::vector<std::string> blank={""};
+      auto ret =
+	casa::refim::SynthesisUtils::constructCFS(cfc.get(), //cfCache,
+						  blank, blank,//Not used with dryrun
+						  "dryrun", 360.0,//Not used with dryrun
+						  400.0, // Should this be computePAStep?
+						  whichCFS);
+      if (std::get<2>(ret) != nullptr) std::rethrow_exception(std::get<2>(ret));
+      //---------------------------------------------------------------------------------------
+
       //-------------------------------------------------------------------
       // Load the selected MS.  The original ms (thems), the selected
       // MS and the MSSelection objects are modified.  The selected
@@ -493,12 +513,13 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       //
       MPosition loc;
       MeasTable::Observatory(loc, MSColumns(db.selectedMS).observation().telescopeName()(0));
-      Bool useDoublePrec=true, aTermOn=true, psTermOn=false, mTermOn=false, doPSF=false;
+      Bool useDoublePrec=true, aTermOn=true, psTermOn=false, mTermOn=false, doPSF=(imagingMode=="psf");
 
-      auto ret = 
+      CountedPtr<refim::VisibilityResamplerBase> visResampler =
 	createAWPFTMachine(ftmName, modelImageName, ftm_g,
+			   cfc,
 			   String("EVLA"),
-			   loc, cfCache,
+			   loc,
 			   //cfBufferSize, cfOversampling,
 			   WBAwp,nW,
 			   useDoublePrec,
@@ -513,15 +534,13 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 			   imageNamePrefix,
 			   imagingMode
 			   );
-      CountedPtr<refim::CFCache>  cfc = get<0>(ret);
-      CountedPtr<refim::VisibilityResamplerBase> visResampler = get<1>(ret);
       {
 	// Matrix<Double> mssFreqSel;
 	// mssFreqSel  = db.msSelection.getChanFreqList(NULL,true);
 	// Send in Freq info.
 	ftm_g->setSpwFreqSelection( mssFreqSel );
 
-	doPSF=(ftm_g->ftmType()==casa::refim::FTMachine::PSF);
+	if (doPSF) assert((ftm_g->ftmType()==casa::refim::FTMachine::PSF));
       }
 
       //-------------------------------------------------------------------
@@ -562,7 +581,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 
       Vector<int> chanMap, polMap;
       visResampler->getMaps(chanMap, polMap);
-      int nGridPlanes = skyImage.shape()[2]; 
+      int nGridPlanes = skyImage.shape()[2];
       PolMapType mndx, conj_mndx;
       {
 	auto ret = makeMNdx(std::string("stokesI.mndx"), polMap, nGridPlanes);
@@ -627,7 +646,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 	    // Predict the data into the VB (presumably the name get()
 	    // means "get the data from the complex grid into the VB")
 	    ftm_g->get(*vb_l,0);
-	    
+
 	    // Write the VB to the specific data column.  Predicted data
 	    // in the in-memory model is always in the VB::visCubeModel.
 	    // So always make that persistent in the specified column of
@@ -662,7 +681,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 	    // means "put the data from the VB into the complex grid")
 	    ftm_g->put(*vb_l,-1,doPSF);
 	  }
-      
+
 	std::vector<double> ret={(double)dataCube.shape().product()*sizeof(Complex), thisIOTime.count()};
 	return ret;
       };
@@ -708,7 +727,8 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 	  // any other ostream*) to the constructor.
 	  //
 	  // TODO: LogIO.output(), which returns the internal ostream
-	  // pointer, does not work. Why?
+	  // pointer, does not work. Why? SB: Probably because LogIO
+	  // is not thread-safe.
 	  libracore::ThreadCoordinator thcoord;
 	  thcoord.newCF=false;
 
@@ -721,8 +741,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 				   std::ref(cfs2_l),
 				   std::ref(db.spwidList),
 				   std::ref(db.spwRefFreqList),
-				   std::ref(nDataPol),
-				   std::ref(log_l));
+				   std::ref(nDataPol));
 	  // First set of CFs have to be ready before proceeding. The
 	  // ThreadCoordinator state after this remains CFReady=true,
 	  // since the call to .waitForCFReady_or_EoD() in the
@@ -799,7 +818,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 
 	  try
 	    {
-	      auto ret = di.dataIter(db.vi2_l, db.vb_l, 
+	      auto ret = di.dataIter(db.vi2_l, db.vb_l,
 				     dataConsumerFTM,
 				     waitForCFReady,
 				     notifyCFSent);
