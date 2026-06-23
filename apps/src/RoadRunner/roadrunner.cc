@@ -35,10 +35,7 @@
 #include <libracore/MakeComponents.h>
 #include <roadrunner.h>
 
-#include <stdexcept>
-
 std::exception_ptr CFServerThreadExceptionPtr_g = nullptr;
-
 
 CountedPtr<refim::FTMachine> ftm_g;
 hpg::CFSimpleIndexer cfsi_g({1,false},{1,false},{1,true},{1,true}, 1);
@@ -316,6 +313,26 @@ double getMakeHPGVBTime(casacore::CountedPtr<casa::refim::VisibilityResamplerBas
   return 0.0;
 }
 
+//
+// Get the return value from the provided std::future<T>.  Issue a
+// message if the associated thread is still running.
+//
+auto get_async_status(std::future<
+		      std::tuple<CountedPtr<casa::refim::CFStore2>,
+		      CountedPtr<casa::refim::CFStore2>,
+		      std::exception_ptr>>& future_status,
+		      LogIO& log_l)
+{
+    using namespace std::chrono_literals;
+    // Non-blocking check to find if the thread is still running
+    if (future_status.wait_for(0ms) == std::future_status::timeout)
+      log_l << "Waiting for the CFS ctor thread to finish..." << LogIO::POST;
+    else
+      log_l << "CFS is ready!" << LogIO::POST;
+
+    return future_status.get();
+};
+
 // The return value is of type ReturnType, which is a std::map<int, double>.  The structure of the map is as follows.
 // Enums for the key (the first tempalate-type) is
 // ReturnType(CUMULATIVE_GRIDDING_ENGINE_TIME) --> Total time taken by the Gridding/deGridding kernel (griddingEngine_time).
@@ -417,13 +434,33 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       // Initialize the CFC and construct the in-memory CFSes.  The CFSes
       // can be extracted from CFC at any point after this call.
       std::vector<std::string> blank={""};
-      auto ret =
-	casa::refim::SynthesisUtils::constructCFS(cfc.get(), //cfCache,
-						  blank, blank,//Not used with dryrun
-						  "dryrun", 360.0,//Not used with dryrun
-						  400.0, // Should this be computePAStep?
-						  whichCFS);
-      if (std::get<2>(ret) != nullptr) std::rethrow_exception(std::get<2>(ret));
+      double pa=360.0, dpa=400.0;
+      refim::CFCache* cfCacheObj=cfc.get();
+      std::string cfcMode="dryrun";
+
+      std::future<std::tuple<CountedPtr<casa::refim::CFStore2>,
+			     CountedPtr<casa::refim::CFStore2>,
+			     std::exception_ptr>> cfsCtor_ret =
+	std::async(std::launch::async,
+		   &casa::refim::SynthesisUtils::constructCFS,
+		   std::ref(cfCacheObj), std::ref(blank),std::ref(blank),
+		   std::ref(cfcMode), std::ref(pa), std::ref(dpa),
+		   std::ref(whichCFS));
+      log_l << "Started CFS ctor in a thread..." << LogIO::POST;
+      //
+      // Simulate the catch block for exceptions thrown immediately
+      // from a constructCFS() in a separate thread, giving it
+      // sufficient time (1s) to start execution.
+      //
+      {
+	// Blocking check to find if the thread is still running.
+	if (cfsCtor_ret.wait_for(1s) != std::future_status::timeout)
+	  {
+	    auto ret=cfsCtor_ret.get();
+	    if (std::get<2>(ret) != nullptr) std::rethrow_exception(std::get<2>(ret));
+	  }
+      };
+
       //---------------------------------------------------------------------------------------
 
       //-------------------------------------------------------------------
@@ -432,6 +469,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       // list of SPW and FIELD IDs are also generated.  All these are
       // currently internal but public members of the DataBase class.
       //
+
       //
       // A plug-in lambda function for DataBase to run soon after opening the MS.
       //
@@ -449,10 +487,6 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 
       DataBase db(MSNBuf, fieldStr, spwStr, uvDistStr, WBAwp, nW,
 		  doSPWDataIter,verifyMS);
-
-      // spwidList      = db.spwidList;
-      // fieldidList    = db.fieldidList;
-      // spwRefFreqList = db.spwRefFreqList;
 
       // mssFreqSel is used below by setSpwFreqSelection (range boundaries for the FTM).
       Matrix<Double> mssFreqSel = db.msSelection.getChanFreqList(NULL, true);
@@ -485,7 +519,6 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 						 imSize, cellSize, phaseCenter,
 						 stokes, refFreqStr, mode);
       PagedImage<Float> skyImage(cgrid.shape(),cgrid.coordinates(), imageName);
-
       //      cgrid.table().markForDelete();
 
       // Setup the weighting scheme in the supplied VI2
@@ -505,6 +538,14 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       if(db.vb_l->polarizationFrame()==MSIter::Linear) StokesImageUtil::changeCStokesRep(cgrid,StokesImageUtil::LINEAR);
       else StokesImageUtil::changeCStokesRep(cgrid, StokesImageUtil::CIRCULAR);
 
+      //-------------------------------------------------------------------
+      // Wait for CFS ctor thread to finish...
+      //
+      {
+	//auto ret=cfsCtor_ret.get();
+	auto ret=get_async_status(cfsCtor_ret,log_l);
+	if (std::get<2>(ret) != nullptr) std::rethrow_exception(std::get<2>(ret));
+      }
       //-------------------------------------------------------------------
       // Create the AWP FTMachine.  The AWProjectionFT is construed
       // with the re-sampler depending on the ftmName (AWVisResampler
@@ -732,7 +773,8 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 	  libracore::ThreadCoordinator thcoord;
 	  thcoord.newCF=false;
 
-	  auto cfPrep = std::async(&CFServer,
+	  auto cfPrep = std::async(std::launch::async,
+				   &CFServer,
 				   std::ref(thcoord),
 				   std::ref(mkCF),
 				   std::ref(WBAwp), std::ref(nW),

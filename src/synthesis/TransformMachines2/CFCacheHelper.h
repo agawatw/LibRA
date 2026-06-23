@@ -83,7 +83,6 @@ namespace casa
 		 CountedPtr<casa::refim::CFStore2>,
 		 std::exception_ptr>
       constructCFS(refim::CFCache* cfCacheObj,
-		   //		   const std::string& cfCacheName,
 		   const std::vector<std::string>& cfList,
 		   const std::vector<std::string>& wtCFList,
 		   const std::string& mode,
