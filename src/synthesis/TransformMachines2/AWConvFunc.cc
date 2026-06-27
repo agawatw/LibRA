@@ -1328,7 +1328,7 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
 				       const CFCStruct& miscInfo,
 				       PSTerm& psTerm, WTerm& wTerm, ATerm& aTerm,
 				       Bool conjBeams,
-				       ImageInformation<Complex>& imInfo_cfcache)
+				       SynthesisUtils::ImageInformation<Complex>& imInfo_cfcache)
 
   {
     LogIO log_l(LogOrigin("AWConvFunc2", "fillConvFuncBuffer2[R&D]"));
@@ -1395,7 +1395,7 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
 	  //cellSize = dc.increment()*(Double)(miscInfo.sampling*skyImage.shape()(0)/nx); // nx is the size of the CF buffer
 	  cellSize = dc.increment()*(Double)(miscInfo.sampling*skyImageShape(0)/nx); // nx is the size of the CF buffer
 	}
-      catch(casa::refim::ImageInformationError &e)
+      catch(casa::refim::SynthesisUtils::ImageInformationError &e)
 	{
 	  log_l << e.what() << endl << "This is an internal error." << LogIO::EXCEPTION;
 	}
@@ -1564,7 +1564,7 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
 				     const Bool psTermOn,
 				     const Bool aTermOn,
 				     const Bool conjBeams,
-				     ImageInformation<Complex> imInfo_cfcache,
+				     SynthesisUtils::ImageInformation<Complex> imInfo_cfcache,
 				     const bool makePersistent)
   {
     LogIO log_l(LogOrigin("AWConvFunc2", "makeConvFunction2[R&D]"));
@@ -1600,13 +1600,16 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
 	// Assume this is a new-format CFC and misc info can be read
 	// from a saved Record using ImageInformation<T>(PATH).
 	//
-	// Initialize imInfo_cfcache if it is not already initialized in-memory.
-	if (!imInfo_cfcache.isInMemory()) imInfo_cfcache = ImageInformation<Complex> (cfCachePath);
-
+	// Initialize imInfo_cfcache if it is not already initialized
+	// in-memory.  This ImageInformaion object is associated with
+	// the CFC (not the CFs).  So, don't look for miscInfo at this
+	// level (i.e., send the last argument as false).
+	if (!imInfo_cfcache.isInMemory())
+	  imInfo_cfcache = SynthesisUtils::ImageInformation<Complex> (cfCachePath,false);
 	skyCoords = imInfo_cfcache.getCoordinateSystem();
 	imShape = imInfo_cfcache.getImShape();
       }
-    catch (casa::refim::ImageInformationError &e)
+    catch (casa::refim::SynthesisUtils::ImageInformationError &e)
       {
 	// Fallback: If ImageInformation<T>(CFCPath) did not succeed,
 	// it indicates that this is an old CFC, never before touced by
@@ -1618,7 +1621,7 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
 	// should succeed.
 	log_l << e.what() << LogIO::WARN;
 	cgrid_l = new PagedImage<Complex> (uvGridDiskImage);//cfs2.getCacheDir()+"/uvgrid.im");
-	imInfo_cfcache = ImageInformation<Complex>(*cgrid_l, cfCachePath);
+	imInfo_cfcache = SynthesisUtils::ImageInformation<Complex>(*cgrid_l, cfCachePath);
 	imInfo_cfcache.save();
 	skyCoords = imInfo_cfcache.getCoordinateSystem();
 	imShape = imInfo_cfcache.getImShape();
@@ -1698,7 +1701,7 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
 			  bool aTermOn_l=aTermOn, psTermOn_l=psTermOn, wTermOn_l=wTermOn, conjBeams_l=conjBeams;
 			  {
 			    // Read the miscinfo for the currect CFCell.
-			    ImageInformation<Complex> imInfo_cfcell(cfCachePath+"/"+currentCFCell_ptr->fileName_p);
+			    SynthesisUtils::ImageInformation<Complex> imInfo_cfcell(cfCachePath+"/"+currentCFCell_ptr->fileName_p);
 			    Record miscInfoRec = imInfo_cfcell.getMiscInfo();
 			    //
 			    // Older CFCs which do not have miscInfo.rec will not have the following parameters defined.
@@ -1714,9 +1717,10 @@ AWConvFunc::AWConvFunc(const casacore::CountedPtr<ATerm> aTerm,
 			    miscInfoRec.get("Sampling",s);
 			    convSampling = s;
 			  }
-			  CountedPtr<ConvolutionFunction> awCF = AWProjectFT::makeCFObject(miscInfo.telescopeName,
-											   aTermOn_l, psTermOn_l, wTermOn_l,true,
-											   wbAWP, conjBeams_l, xSupport, convSampling);
+			  CountedPtr<ConvolutionFunction> awCF =
+			    AWProjectFT::makeCFObject(miscInfo.telescopeName,
+						      aTermOn_l, psTermOn_l, wTermOn_l,true,
+						      wbAWP, conjBeams_l, xSupport, convSampling);
 			  if (aTermOn_l==false)
 			    {
 			      (static_cast<AWConvFunc &>(*awCF)).aTerm_p->setOpCode(CFTerms::NOOP);

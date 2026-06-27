@@ -169,7 +169,7 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  // etc.), save in a record and make it persistent in the
 	  // CFCache.
 	  //
-	  ImageInformation<Complex> imInfo(cgrid);
+	  SynthesisUtils::ImageInformation<Complex> imInfo(cgrid);
 	  imInfo.save(casacore::String(cfCacheName));
 
 	  //-------------------------------------------------------------------------------------------------
@@ -194,7 +194,7 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
 	  // supplied as an argument, an attempt will be made in
 	  // fillCFS_inmemory() to load the info from the cfCacheName.
 	  //
-	  ImageInformation<Complex> imInfo;
+	  SynthesisUtils::ImageInformation<Complex> imInfo;
 	  casa::refim::SynthesisUtils::fillCFS_inmemory(cfCacheName,
 							cfs2_l, cfswt2_l, uvOffset,
 							psTerm, aTerm, conjBeams,
@@ -213,8 +213,9 @@ void Coyote(//bool &restartUI, int &argc, char **argv,
       //
       if (!cfCacheName.empty())
 	{
-	  cfs2_l->makePersistent(cfCacheName.c_str(),"","", true);
-	  cfswt2_l->makePersistent(cfCacheName.c_str(),"","WT",true);
+	  bool useThreads=true;
+	  cfs2_l->makePersistent(cfCacheName.c_str(),"","", useThreads);
+	  cfswt2_l->makePersistent(cfCacheName.c_str(),"","WT",useThreads);
 	}
       //
       //------------------------------------------------------------------------------------------------------

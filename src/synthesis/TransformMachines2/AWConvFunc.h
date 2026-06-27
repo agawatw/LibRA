@@ -103,7 +103,7 @@ namespace casa { //# NAMESPACE CASA - BEGIN
 				  const casacore::Bool psTermOn,
 				  const casacore::Bool aTermOn,
 				  const casacore::Bool conjBeams,
-				   ImageInformation<Complex> ImInfo=ImageInformation<Complex>(),
+				  SynthesisUtils::ImageInformation<Complex> ImInfo=SynthesisUtils::ImageInformation<Complex>(),
 				  const casacore::Bool makePersistent=true);
     static void fillConvFuncBuffer2(CFBuffer& cfb, CFBuffer& cfWtb,
 				    const casacore::Int& nx, const casacore::Int& ny,
@@ -111,7 +111,7 @@ namespace casa { //# NAMESPACE CASA - BEGIN
 				    const CFCStruct& miscInfo,
 				    PSTerm& psTerm, WTerm& wTerm, ATerm& aTerm,
 				    casacore::Bool conjBeams,
-				    ImageInformation<Complex>& ImInfo);
+				    SynthesisUtils::ImageInformation<Complex>& ImInfo);
 
     virtual casacore::Bool makeAverageResponse(const VisBuffer2& vb, 
 				     const casacore::ImageInterface<casacore::Complex>& image,

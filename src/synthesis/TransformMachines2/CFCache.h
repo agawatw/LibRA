@@ -1,6 +1,6 @@
 // -*- C++ -*-
 //# ConvFuncDiskCache.cc: Definition of the ConvFuncDiskCache class
-//# Copyright (C) 1997,1998,1999,2000,2001,2002,2003
+//# Copyright (C) 1997,1998,1999,2000,2001,2002,2003,2026
 //# Associated Universities, Inc. Washington DC, USA.
 //#
 //# This library is free software; you can redistribute it and/or modify it
@@ -119,7 +119,9 @@ namespace casa { //# NAMESPACE CASA - BEGIN
   class CFCacheTable
   {
   public:
-    CFCacheTable(): freqList(), wList(), muellerList(), cfNameList() {};
+    CFCacheTable(): freqList(), wList(), muellerList(), cfNameList(),
+		    miscInfoList(),listSize(0)
+    {};
     ~CFCacheTable() {};
     
     CFCacheTable& operator=(const CFCacheTable& other)
@@ -130,16 +132,32 @@ namespace casa { //# NAMESPACE CASA - BEGIN
 	  wList = other.wList;
 	  muellerList = other.muellerList;
 	  cfNameList = other.cfNameList;
+	  miscInfoList = other.miscInfoList;
 	}
       return *this;
     }
 
     void init()
-    {freqList.resize(0); wList.resize(0); muellerList.resize(0); cfNameList.resize(0);}
+    {
+      freqList.resize(0); wList.resize(0); muellerList.resize(0); cfNameList.resize(0);
+      miscInfoList.resize(0);
+    }
+
+    void resizeLists(uint n=0)
+    {
+      if (n==0) n=listSize;
+      freqList.resize(n);
+      wList.resize(n);
+      muellerList.resize(n);
+      cfNameList.resize(n);
+      miscInfoList.resize(n);
+    }
 
     std::vector<casacore::Double> freqList, wList;
     std::vector<casacore::Int> muellerList;
     std::vector<casacore::String> cfNameList;
+    std::vector<casacore::TableRecord> miscInfoList;
+    uint listSize;
   };
   //
   //----------------------------------------------------------------------
