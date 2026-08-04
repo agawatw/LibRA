@@ -130,7 +130,9 @@ void UI(Bool restart, int argc, char **argv, bool interactive,
       // Expose the datacolumn parameter only for mode=residual
       // exposedKeys.push_back("datacolumn");
       // watchPoints["residual"]=exposedKeys;
-      std::vector<std::string> imagingModeOpts = {"weight","psf","snrpsf","residual","predict"};
+      std::vector<std::string>
+        imagingModeOpts = {"weight","psf","snrpsf","residual","predict",
+        "wisweight","wispsf","wisresidual"};
       i=1;clgetSValp("mode", imagingMode,i,watchPoints); clSetOptions("mode",imagingModeOpts);
 
       i=1;clgetValp("wbawp", WBAwp,i);

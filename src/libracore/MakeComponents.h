@@ -151,8 +151,8 @@ createAWPFTMachine(const String ftmName,
 				     tile, computePAStep, pbLimit_l, true,conjBeams,
 				     useDoublePrec);
 
-  if (imagingMode=="weight")    {theFT->setFTMType(casa::refim::FTMachine::WEIGHT);}
-  else if (imagingMode=="psf")  {theFT->setFTMType(casa::refim::FTMachine::PSF);}
+  if ((imagingMode=="weight") || (imagingMode=="wisweight"))    {theFT->setFTMType(casa::refim::FTMachine::WEIGHT);}
+  else if ((imagingMode=="psf") || (imagingMode=="wispsf")) {theFT->setFTMType(casa::refim::FTMachine::PSF);}
   else if (imagingMode=="snrpsf")  {theFT->setFTMType(casa::refim::FTMachine::SNRPSF);}
 
   theFT->setCFCache(cfCacheObj);

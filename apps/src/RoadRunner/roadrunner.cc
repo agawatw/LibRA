@@ -345,6 +345,21 @@ auto get_async_status(std::shared_future<
     return future_status.get();
 };
 
+void setupForWiSImaging(vi::VisBuffer2* vb_l,const Cube<Complex>& dataCube)
+{
+  Cube<Complex> modelCube=vb_l->visCubeModel();
+  Matrix<float> imgWt(modelCube.shape()(1),modelCube.shape()(2));
+
+  // Set imgWt to be abs(resVis)
+  for(int ic=0; ic<dataCube.shape()(1); ic++)
+    for(int ir=0;ir<dataCube.shape()(2); ir++)
+        imgWt(ic,ir) = abs(dataCube(0,ic,ir)-modelCube(0,ic,ir));
+
+  // Set the dataCube and imging weights for consumstion in
+  // ftm_g->put()
+  vb_l->setImagingWeight(vb_l->imagingWeight()*imgWt);
+  vb_l->setVisCube(dataCube);
+}
 //
 //---------------------------------------------------------------------------------------
 // The return value is of type ReturnType, which is a std::map<int, double>.  The structure of the map is as follows.
@@ -442,7 +457,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       CountedPtr<refim::CFCache> cfc(new refim::CFCache(cfCache.c_str()));
 
       casa::refim::SynthesisUtils::CFCHelperCodes whichCFS=casa::refim::SynthesisUtils::CFCHelperCodes::MAKE_CFCFS;
-      if (imagingMode == "psf" || imagingMode=="weight" )
+      if (imagingMode == "psf" || imagingMode == "weight" || imagingMode == "wisweight" || imagingMode == "wispsf")
 	whichCFS=casa::refim::SynthesisUtils::CFCHelperCodes::MAKE_WTCFS;
 
       // Initialize the CFC and construct the in-memory CFSes.  The CFSes
@@ -503,6 +518,10 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 	    throw(AipsError("MS verification error: "
 			    "The requested data column (\""+dataColumnName+"\") for mode="
 			    +imagingMode+" not found.  Bailing out."));
+
+          if ((imagingMode.find("wis") != std::string::npos) && !(ms.tableDesc().isColumn("MODEL_DATA")))
+	    throw(AipsError("MS verification error: "
+			    "mode="+imagingMode+" requires MODEL_DATA column.  Bailing out."));
 	};
 
       DataBase db(MSNBuf, fieldStr, spwStr, uvDistStr, WBAwp, nW,
@@ -577,7 +596,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       MPosition loc;
       MeasTable::Observatory(loc, MSColumns(db.selectedMS).observation().telescopeName()(0));
       Bool useDoublePrec=true, aTermOn=true, psTermOn=false, mTermOn=false,
-	doPSF=(imagingMode=="psf");
+	doPSF=((imagingMode=="psf") || (imagingMode=="wispsf"));
 
       CountedPtr<refim::VisibilityResamplerBase> visResampler =
 	createAWPFTMachine(ftmName, modelImageName, ftm_g,
@@ -639,9 +658,10 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       CountedPtr<casa::refim::CFStore2> cfs2_l;
       if (!cfc.null())
 	{
-	  if (doPSF || (imagingMode=="weight")) cfs2_l =  cfc->getWTCFS();
+	  if (doPSF || (imagingMode=="weight") || (imagingMode=="wisweight")) cfs2_l =  cfc->getWTCFS();
 	  else cfs2_l = cfc->getCFS();
 	}
+      assert(cfs2_l.get() != nullptr);
 
       Vector<int> chanMap, polMap;
       visResampler->getMaps(chanMap, polMap);
@@ -736,8 +756,10 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 	    else if (dataCol_l==casa::refim::FTMachine::MODEL)  {dataCube=vb_l->visCubeModel();}
 	    else                                                {dataCube=vb_l->visCube();}
 
-	    // Set the dataCube for consumstion in ftm_g->put()
-	    vb_l->setVisCube(dataCube);
+            if (imagingMode.find("wis") != std::string::npos)
+              setupForWiSImaging(vb_l,dataCube);
+            else
+              vb_l->setVisCube(dataCube);
 
 	    thisIOTime = std::chrono::steady_clock::now() - dataIO_start;
 

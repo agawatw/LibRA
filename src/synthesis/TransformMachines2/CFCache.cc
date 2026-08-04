@@ -364,7 +364,7 @@ namespace casa{
 
 	    paList_p.resize(fileNames.nelements());
 
-	    log_l << "Laoding CFCache metadata" << LogIO::POST;
+	    log_l << "Loading CFCache metadata" << LogIO::POST;
 	    {
 	      ProgressMeter pm(1.0, double(fileNames.nelements()),
 			       "Reading CFCache aux. info.", "","","",true);
