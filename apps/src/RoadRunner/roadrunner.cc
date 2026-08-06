@@ -34,7 +34,7 @@
 #include <libracore/DataBase.h>
 #include <libracore/MakeComponents.h>
 #include <roadrunner.h>
-
+#define HAS_MACRO(STR,SUBSTR) (STR.find(SUBSTR) != std::string::npos)
 std::exception_ptr CFServerThreadExceptionPtr_g = nullptr;
 
 CountedPtr<refim::FTMachine> ftm_g;
@@ -348,16 +348,21 @@ auto get_async_status(std::shared_future<
 void setupForWiSImaging(vi::VisBuffer2* vb_l,const Cube<Complex>& dataCube)
 {
   Cube<Complex> modelCube=vb_l->visCubeModel();
-  Matrix<float> imgWt(modelCube.shape()(1),modelCube.shape()(2));
+  Matrix<float> resVis(modelCube.shape()(1),modelCube.shape()(2));
 
-  // Set imgWt to be abs(resVis)
+  // Compute residual vis.
+  float maxRes=0.0;
   for(int ic=0; ic<dataCube.shape()(1); ic++)
     for(int ir=0;ir<dataCube.shape()(2); ir++)
-        imgWt(ic,ir) = abs(dataCube(0,ic,ir)-modelCube(0,ic,ir));
-
-  // Set the dataCube and imging weights for consumstion in
+      {
+        float thisResVis=abs(dataCube(0,ic,ir)-modelCube(0,ic,ir));
+        resVis(ic,ir) = abs(thisResVis);
+        if (thisResVis > maxRes) maxRes=thisResVis;
+      }
+  resVis = resVis/maxRes;
+  // Set the dataCube and imaging weights for consumstion in
   // ftm_g->put()
-  vb_l->setImagingWeight(vb_l->imagingWeight()*imgWt);
+  vb_l->setImagingWeight(vb_l->imagingWeight()*resVis);
   vb_l->setVisCube(dataCube);
 }
 //
@@ -519,7 +524,8 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 			    "The requested data column (\""+dataColumnName+"\") for mode="
 			    +imagingMode+" not found.  Bailing out."));
 
-          if ((imagingMode.find("wis") != std::string::npos) && !(ms.tableDesc().isColumn("MODEL_DATA")))
+          //          if ((imagingMode.find("wis") != std::string::npos) && !(ms.tableDesc().isColumn("MODEL_DATA")))
+          if (HAS_MACRO(imagingMode,"wis") && !(ms.tableDesc().isColumn("MODEL_DATA")))
 	    throw(AipsError("MS verification error: "
 			    "mode="+imagingMode+" requires MODEL_DATA column.  Bailing out."));
 	};
@@ -546,7 +552,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       // Make the empty grid with the sky image coordinates
       //
       Vector<Int> imSize(2,NX);
-      String mode="mfs", startModelImageName="";
+      String mode="mfs";
 
       // casacore::MDirection pc;
       // Int pcField = casa::refim::getPhaseCenter(selectedMS,pc);
@@ -718,7 +724,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       //
 
       auto dataConsumerFTM =
-	[&imagingMode, &doPSF, &dataCol_l]
+	[&imagingMode, &modelImageName, &doPSF, &dataCol_l]
 	(vi::VisBuffer2 *vb_l, vi::VisibilityIterator2 *vi2_l)
       {
 	std::chrono::time_point<std::chrono::steady_clock> dataIO_start;
@@ -729,16 +735,17 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 	  {
 	    // Predict the data into the VB (presumably the name get()
 	    // means "get the data from the complex grid into the VB")
-	    ftm_g->get(*vb_l,0);
+            if (modelImageName != "") ftm_g->get(*vb_l,0);
 
-	    // Write the VB to the specific data column.  Predicted data
-	    // in the in-memory model is always in the VB::visCubeModel.
-	    // So always make that persistent in the specified column of
-	    // the VI.
-	    dataIO_start = std::chrono::steady_clock::now();
+            // Write the VB to the specific data column.  Predicted data
+            // in the in-memory model is always in the VB::visCubeModel.
+            // So always make that persistent in the specified column of
+            // the VI.
+            dataIO_start = std::chrono::steady_clock::now();
 
-	    // Extract the predicted data in the dataCube for writting it back to the data base.
+            // Extract the predicted data in the dataCube for writting it back to the data base.
 	    dataCube=vb_l->visCubeModel();
+            if (modelImageName == "") dataCube=Complex(0,0);
 
 	    if (dataCol_l==casa::refim::FTMachine::MODEL)          {vi2_l->writeVisModel(dataCube);}
 	    else if (dataCol_l==casa::refim::FTMachine::CORRECTED) {vi2_l->writeVisCorrected(dataCube);}
@@ -756,10 +763,8 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 	    else if (dataCol_l==casa::refim::FTMachine::MODEL)  {dataCube=vb_l->visCubeModel();}
 	    else                                                {dataCube=vb_l->visCube();}
 
-            if (imagingMode.find("wis") != std::string::npos)
-              setupForWiSImaging(vb_l,dataCube);
-            else
-              vb_l->setVisCube(dataCube);
+            if (HAS_MACRO(imagingMode,"wis")) setupForWiSImaging(vb_l,dataCube);
+            else                              vb_l->setVisCube(dataCube);
 
 	    thisIOTime = std::chrono::steady_clock::now() - dataIO_start;
 

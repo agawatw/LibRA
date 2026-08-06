@@ -198,7 +198,8 @@ unsigned mRow=0;
 					      vis[visVecElement] = casaVBS.visCube_p(ipol,ichan,irow);
 					    }
 
-					  wt[visVecElement]=casaVBS.imagingWeight_p(ichan,irow);
+					  //wt[visVecElement]=casaVBS.imagingWeight_p(ichan,irow);
+                                          wt[visVecElement]=casaVB.imagingWeight()(ichan,irow);
 					}
 				      else
 					{
