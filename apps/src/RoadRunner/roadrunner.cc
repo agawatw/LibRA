@@ -352,16 +352,21 @@ void setupForWiSImaging(vi::VisBuffer2* vb_l,const Cube<Complex>& dataCube)
 
   // Compute residual vis.
   float maxRes=0.0;
+  Complex maxMod=0.0;
   for(int ic=0; ic<dataCube.shape()(1); ic++)
     for(int ir=0;ir<dataCube.shape()(2); ir++)
       {
         float thisResVis=abs(dataCube(0,ic,ir)-modelCube(0,ic,ir));
-        resVis(ic,ir) = abs(thisResVis);
+        resVis(ic,ir) = thisResVis;
         if (thisResVis > maxRes) maxRes=thisResVis;
+        //if (modelCube(0,ic,ir) > maxMod) maxMod=modelCube(0,ic,ir);
       }
+  cerr << "###############Max res = " << maxRes << " " << maxMod << endl;
+
+  // Noramlize for a flux-preserving weighting function.  Not sure if
+  // this way of doing the normalization is entierly correct.
   resVis = resVis/maxRes;
-  // Set the dataCube and imaging weights for consumstion in
-  // ftm_g->put()
+  // Set the dataCube and imaging weights for consumstion in ftm_g->put()
   vb_l->setImagingWeight(vb_l->imagingWeight()*resVis);
   vb_l->setVisCube(dataCube);
 }
