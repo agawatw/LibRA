@@ -359,7 +359,7 @@ void setupForWiSImaging(vi::VisBuffer2* vb_l,const Cube<Complex>& dataCube)
         float thisResVis=abs(dataCube(0,ic,ir)-modelCube(0,ic,ir));
         resVis(ic,ir) = thisResVis;
         if (thisResVis > maxRes) maxRes=thisResVis;
-        //if (modelCube(0,ic,ir) > maxMod) maxMod=modelCube(0,ic,ir);
+        if (modelCube(0,ic,ir) > maxMod) maxMod=modelCube(0,ic,ir);
       }
   cerr << "###############Max res = " << maxRes << " " << maxMod << endl;
 

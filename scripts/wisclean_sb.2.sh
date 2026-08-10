@@ -33,7 +33,7 @@ OMP_NUM_THREADS=1
 # Default parameters
 OSGjob=false
 imagename="wistest0"
-ncycle=4
+ncycle=3
 LIBRAHOME=/home/dhruva/disk1/sanjay/Packages/LibRA/libra
 logdir=${PWD}/wisimaging0.log
 RUNAPP=../scripts/runapp.sh
@@ -101,21 +101,12 @@ then
              2>| ${logdir}/norm_res0.log
     cp -r ${imagename}.residual ${imagename}.dirty.cycle0
 
-    # echo ${RUNAPP} ${normalizationAPP} normalize ${imagename} ${input_file} ${logdir} -t residual -c 0
-    # ${RUNAPP} ${normalizationAPP} normalize ${imagename} ${input_file} ${logdir} -t residual -c 0
-    # cp -r ${imagename}.residual ${imagename}.dirty.cycle0
-
     # # normalize the PSF and make primary beam
     echo "Normalizing the initial ${MODE_PSF} and PB ..."
     runapp_l ${normalizationAPP} imtype=psf imagename=${imagename} computepb=1\
              2>| ${logdir}/norm_psf0.log
     cp -r ${imagename}.psf ${imagename}.psf.cycle0
     cp -r ${imagename}.weight ${imagename}.weight.cycle0
-
-    # ${RUNAPP} ${normalizationAPP} normalize ${imagename} ${input_file} ${logdir} -t psf
-    # cp -r ${imagename}.psf ${imagename}.psf.cycle0
-    # cp -r ${imagename}.weight ${imagename}.weight.cycle0
-exit 0;
 
 else
     echo "Doing only the update step..."
@@ -129,10 +120,9 @@ do
 
     # run hummbee for updateModel deconvolution iterations
     #------------------------------------------------------------------------------------
-    echo "Making model update ${i} ..."
+    echo "  Making model update ${i} ..."
     runapp_l ${deconvolutionAPP} imagename=${imagename} mode=deconvolve\
              2>| ${logdir}/model_update${i}.log
-    # ${RUNAPP} ${deconvolutionAPP} deconvolve ${imagename} ${input_file} ${logdir} -c ${i}
     #------------------------------------------------------------------------------------
 
     # work around to fix the NOOP in dale
@@ -144,8 +134,6 @@ do
              2>| ${logdir}/model_normalize${i}.log
     #------------------------------------------------------------------------------------
              
-    # ${RUNAPP} ${normalizationAPP} normalize ${imagename} ${input_file} ${logdir} -t model -c ${i}
-
     # save model at each cycle for debugging and remove unwanted images
     cp -r ${imagename}.divmodel ${imagename}.model.cycle${i}
     rm -rf ${imagename}.psf
@@ -153,65 +141,47 @@ do
     rm -rf ${imagename}.weight
 
 
-
     #------------------------------------------------------------------------------------
     # Fill the MODEL_DATA Column
     # roadrunner mode=predict datacolumn=model modelimage=<LATEST MODEL FROM HUMMBEE>
-    echo "Making ${i} MODEL_DATA ..."
-    runapp_l ${griddingAPP} mode=${MODE_PREDICT} datacolumn=model imagename=${imagename}.divmodel \
+    echo "  Making MODEL_DATA ${i} ..."
+    runapp_l ${griddingAPP} mode=${MODE_PREDICT} datacolumn=model modelimagename=${imagename}.divmodel \
              2>| ${logdir}/predict${i}.log
-    # echo -e "load psf_predict.def \ngo" | ${griddingAPP} help=dbg 2>| model_predict.log
-    #eval "${griddingApp} help=def,psf_predict.def" 2>| model_predict.log
     #------------------------------------------------------------------------------------
 
     #------------------------------------------------------------------------------------
     # Make weight and save gridded vis
-    echo "Making the ${i} ${MODE_WEIGHT} ..."
+    echo "  Making ${MODE_WEIGHT} ${i} ..."
     runapp_l ${griddingAPP} mode=${MODE_WEIGHT} imagename=${imagename}.weight \
              complexgrid=${imagename}_gridcf.vis${i} \
              2>| ${logdir}/${MODE_WEIGHT}${i}.log
-
-    # ${RUNAPP} ${griddingAPP} ${MODE_WEIGHT} ${imagename} ${input_file} ${logdir} -c ${i}
-    # mv ${imagename}.${MODE_WEIGHT} ${imagename}.weight
-    # cp -r ${imagename}_gridv.vis ${imagename}_gridcf.vis${i}
     #------------------------------------------------------------------------------------
 
 
     #------------------------------------------------------------------------------------
     # Make Redisual and save gridded vis
-    echo "Making the ${i} ${MODE_RESIDUAL} ..."
+    echo "  Making ${MODE_RESIDUAL} ${i} ..."
     runapp_l ${griddingAPP} mode=${MODE_RESIDUAL} imagename=${imagename}.residual modelimagename=${imagename}.divmodel \
              complexgrid=${imagename}_gridres.vis${i} \
              2>| ${logdir}/${MODE_RESIDUAL}${i}.log
 
-#     ${RUNAPP} ${griddingAPP} ${MODE_RESIDUAL} ${imagename} ${input_file} ${logdir} -m ${imagename}.divmodel -c ${i}
-# #    ${RUNAPP} ${griddingAPP} ${MODE_RESIDUAL} ${imagename} ${input_file} ${logdir} -c ${i}
-#     mv ${imagename}.${MODE_RESIDUAL} ${imagename}.residual
-#     cp -r ${imagename}_gridv.vis ${imagename}_gridres.vis${i}
-
     # normalize the new residual 
-    echo "Normalizing the ${i} ${MODE_RESIDUAL} ..."
+    echo "  Normalizing ${MODE_RESIDUAL} ${i}..."
     runapp_l ${normalizationAPP} imtype=residual imagename=${imagename} \
              2>| ${logdir}/norm_res${i}.log
-    # ${RUNAPP} ${normalizationAPP} normalize ${imagename} ${input_file} ${logdir} -t residual -c ${i}
     #------------------------------------------------------------------------------------
 
 
     #------------------------------------------------------------------------------------
     # Make PSF and save gridded vis
-    echo "Making the ${i} ${MODE_PSF} ..."
+    echo "  Making ${MODE_PSF} ${i} ..."
     runapp_l ${griddingAPP} mode=${MODE_PSF} imagename=${imagename}.psf complexgrid=${imagename}_gridpsf.vis${i} \
              2>| ${logdir}/${MODE_PSF}${i}.log
     
-    # ${RUNAPP} ${griddingAPP} ${MODE_PSF} ${imagename} ${input_file} ${logdir} -c ${i}
-    # mv ${imagename}.${MODE_PSF} ${imagename}.psf
-    # cp -r ${imagename}_gridv.vis ${imagename}_gridpsf.vis{i}
-
     # normalize the new PSF
-    echo "Normalizing the ${i} ${MODE_PSF} and PB ..."
+    echo "  Normalizing ${MODE_PSF} and PB ${i} ..."
     runapp_l ${normalizationAPP} imtype=psf imagename=${imagename} computepb=1\
              2>| ${logdir}/norm_psf0.log
-    # ${RUNAPP} ${normalizationAPP} normalize ${imagename} ${input_file} ${logdir} -t psf -c ${i}
     #------------------------------------------------------------------------------------
 
     # save residual at each cycle for debugging
