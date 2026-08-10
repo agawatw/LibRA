@@ -77,7 +77,7 @@ then
     # Initialize the MODEL_DATA Column
     # roadrunner mode=predict datacolumn=model modelimage=""
     echo "Initializing the MODEL_DATA ..."
-    runapp_l ${griddingAPP} mode=${MODE_PREDICT} datacolumn=model imagename= modeimagename= \
+    runapp_l ${griddingAPP} mode=${MODE_PREDICT} datacolumn=model imagename= modelimagename= \
              2>| ${logdir}/predict0.log
 
     # generate weight
@@ -181,7 +181,7 @@ do
     # normalize the new PSF
     echo "  Normalizing ${MODE_PSF} and PB ${i} ..."
     runapp_l ${normalizationAPP} imtype=psf imagename=${imagename} computepb=1\
-             2>| ${logdir}/norm_psf0.log
+             2>| ${logdir}/norm_psf${i}.log
     #------------------------------------------------------------------------------------
 
     # save residual at each cycle for debugging
