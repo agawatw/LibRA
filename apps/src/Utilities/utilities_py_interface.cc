@@ -187,27 +187,23 @@ py::object getchunkFromPathAuto(const string& imagePath)
 // Write-back counterpart to getchunkFromPath: overwrite the pixels of an
 // existing casa image on disk with the contents of a NumPy array in place.
 // The array must already carry the on-disk pixel type and getchunkFromPath's
-// (x, y, pol, chan) Fortran-strided layout -- a mismatch is a caller bug and
-// is reported as such rather than silently reshaped or cast. The actual
-// write, and the writability/shape checks, live in librautils::putChunkFromPath;
-// this only marshals the py::array into a casacore::Array<T>.
+// (x, y, pol, chan) axis order -- a mismatch is a caller bug and is reported
+// as such rather than silently reshaped or cast. The actual write, and the
+// writability/shape checks, are in librautils::putChunkFromPath; 
 
 template <class T>
-void putChunkFromPath(const string& imagePath, py::array array)
+void putChunkFromPath(const string& imagePath,
+    py::array_t<T, py::array::f_style | py::array::forcecast> array)
 {
+    // f_style | forcecast makes pybind11 hand us an array already laid out
+    // the way casacore's constructor below expects. Pybind11 will do the copying if the
+    // caller's array wasn't already that shape in memory, instead of it.
+    // can potentially lead to overflow for very large images.
     py::buffer_info buf = array.request();
 
     casacore::IPosition shape(buf.ndim);
-    py::ssize_t expectedStride = sizeof(T);
-    for (int i = 0; i < buf.ndim; ++i) {
-        if (buf.strides[i] != expectedStride)
-            throw std::invalid_argument(
-                "putchunkfrompath: array must be Fortran-contiguous in "
-                "(x, y, pol, chan) order, matching getchunkfrompath's "
-                "layout");
+    for (int i = 0; i < buf.ndim; ++i)
         shape(i) = buf.shape[i];
-        expectedStride *= buf.shape[i];
-    }
 
     casacore::Array<T> arr(shape, static_cast<T*>(buf.ptr), casacore::SHARE);
     librautils::putChunkFromPath<T>(imagePath, arr);
