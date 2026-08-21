@@ -32,12 +32,12 @@ OMP_NUM_THREADS=1
 
 # Default parameters
 OSGjob=false
-imagename="wistest0"
-ncycle=3
-LIBRAHOME=/home/dhruva/disk1/sanjay/Packages/LibRA/libra
-logdir=${PWD}/wisimaging0.log
-RUNAPP=../scripts/runapp.sh
-libraBIN=${LIBRAHOME}/install_test/bin
+imagename="cygA_wisclean_msclean2norm"
+ncycle=20
+LIBRAHOME=/home/nemo2/nemo2/mhsieh/libra_sanjay/libra/
+logdir=${PWD}/LOGS2NORM_20CYCLES
+RUNAPP=/home/nemo2/nemo2/mhsieh/libra_sanjay/libra/scripts/runapp.sh
+libraBIN=${LIBRAHOME}/install/bin
 
 MODE_PSF="wispsf"
 MODE_WEIGHT="wisweight"

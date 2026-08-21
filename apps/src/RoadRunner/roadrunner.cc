@@ -345,27 +345,55 @@ auto get_async_status(std::shared_future<
     return future_status.get();
 };
 
-void setupForWiSImaging(vi::VisBuffer2* vb_l,const Cube<Complex>& dataCube)
+std::tuple<double,double,float> computeWiSWeightSums(vi::VisBuffer2* vb_l,
+                                                       const Cube<Complex>& dataCube)
+{
+  Cube<Complex> modelCube=vb_l->visCubeModel();
+  Matrix<Float> imagingWeight=vb_l->imagingWeight();
+
+  double sumWeight=0.0;
+  double sumWeightedResidual=0.0;
+  float maxRes=0.0;
+
+  for(int ic=0; ic<dataCube.shape()(1); ic++)
+    for(int ir=0; ir<dataCube.shape()(2); ir++)
+      {
+        float thisResVis=abs(dataCube(0,ic,ir)-modelCube(0,ic,ir));
+        float thisWeight=imagingWeight(ic,ir);
+        sumWeight += thisWeight;
+        sumWeightedResidual += thisWeight*thisResVis;
+        if (thisResVis > maxRes) maxRes=thisResVis;
+      }
+
+  return std::make_tuple(sumWeight, sumWeightedResidual, maxRes);
+}
+
+void setupForWiSImaging(vi::VisBuffer2* vb_l,
+                        const Cube<Complex>& dataCube,
+                        const float& fluxPreservingScale)
 {
   Cube<Complex> modelCube=vb_l->visCubeModel();
   Matrix<float> resVis(modelCube.shape()(1),modelCube.shape()(2));
 
   // Compute residual vis.
   float maxRes=0.0;
-  Complex maxMod=0.0;
+  //Complex maxMod=0.0;
   for(int ic=0; ic<dataCube.shape()(1); ic++)
     for(int ir=0;ir<dataCube.shape()(2); ir++)
       {
         float thisResVis=abs(dataCube(0,ic,ir)-modelCube(0,ic,ir));
-        resVis(ic,ir) = thisResVis;
+        //resVis(ic,ir) = thisResVis;
+        resVis(ic,ir) = thisResVis*fluxPreservingScale;
         if (thisResVis > maxRes) maxRes=thisResVis;
-        if (modelCube(0,ic,ir) > maxMod) maxMod=modelCube(0,ic,ir);
+        //if (modelCube(0,ic,ir) > maxMod) maxMod=modelCube(0,ic,ir);
       }
-  cerr << "###############Max res = " << maxRes << " " << maxMod << endl;
+  //cerr << "###############Max res = " << maxRes << " " << maxMod << endl;
+  cerr << "###############Max res = " << maxRes
+       << ", WiS flux-preserving scale = " << fluxPreservingScale << endl;
 
   // Noramlize for a flux-preserving weighting function.  Not sure if
   // this way of doing the normalization is entierly correct.
-  resVis = resVis/maxRes;
+  //resVis = resVis/maxRes;
   // Set the dataCube and imaging weights for consumstion in ftm_g->put()
   vb_l->setImagingWeight(vb_l->imagingWeight()*resVis);
   vb_l->setVisCube(dataCube);
@@ -711,6 +739,48 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 		       "Gridding", "","","",true);
       DataIterator di(isRoot,dataCol_l);
 
+      float wisFluxPreservingScale=1.0;
+      if (HAS_MACRO(imagingMode,"wis"))
+        {
+          double sumWeight=0.0;
+          double sumWeightedResidual=0.0;
+          float maxResidual=0.0;
+
+          auto dataConsumerWiSScale =
+            [&dataCol_l, &sumWeight, &sumWeightedResidual, &maxResidual]
+            (vi::VisBuffer2 *vb_l, vi::VisibilityIterator2 *)
+          {
+            std::chrono::time_point<std::chrono::steady_clock> dataIO_start =
+              std::chrono::steady_clock::now();
+
+            Cube<Complex> dataCube;
+            if (dataCol_l==casa::refim::FTMachine::CORRECTED)   {dataCube=vb_l->visCubeCorrected();}
+            else if (dataCol_l==casa::refim::FTMachine::MODEL)  {dataCube=vb_l->visCubeModel();}
+            else                                                {dataCube=vb_l->visCube();}
+
+            auto ret=computeWiSWeightSums(vb_l,dataCube);
+            sumWeight += std::get<0>(ret);
+            sumWeightedResidual += std::get<1>(ret);
+            maxResidual = std::max(maxResidual,std::get<2>(ret));
+
+            std::chrono::duration<double> thisIOTime =
+              std::chrono::steady_clock::now() - dataIO_start;
+            return std::vector<double>{(double)dataCube.shape().product()*sizeof(Complex),
+                                       thisIOTime.count()};
+          };
+
+          di.dataIter(db.vi2_l, db.vb_l, dataConsumerWiSScale);
+          if (sumWeightedResidual > 0.0)
+            wisFluxPreservingScale=sumWeight/sumWeightedResidual;
+          else
+            wisFluxPreservingScale=0.0;
+
+          log_l << "WiS flux-preserving scale: " << wisFluxPreservingScale
+                << " (sumWeight=" << sumWeight
+                << ", sumWeightedResidual=" << sumWeightedResidual
+                << ", maxResidual=" << maxResidual << ")" << LogIO::POST;
+        }
+
       //-----------------------------------------------------------------------------------
       // Lambda function called in the DataIterator::dataIter().  This
       // consumes the VB inside iterator loops
@@ -729,7 +799,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       //
 
       auto dataConsumerFTM =
-	[&imagingMode, &modelImageName, &doPSF, &dataCol_l]
+	[&imagingMode, &modelImageName, &doPSF, &dataCol_l, &wisFluxPreservingScale]
 	(vi::VisBuffer2 *vb_l, vi::VisibilityIterator2 *vi2_l)
       {
 	std::chrono::time_point<std::chrono::steady_clock> dataIO_start;
@@ -768,7 +838,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 	    else if (dataCol_l==casa::refim::FTMachine::MODEL)  {dataCube=vb_l->visCubeModel();}
 	    else                                                {dataCube=vb_l->visCube();}
 
-            if (HAS_MACRO(imagingMode,"wis")) setupForWiSImaging(vb_l,dataCube);
+            if (HAS_MACRO(imagingMode,"wis")) setupForWiSImaging(vb_l,dataCube,wisFluxPreservingScale);
             else                              vb_l->setVisCube(dataCube);
 
 	    thisIOTime = std::chrono::steady_clock::now() - dataIO_start;
