@@ -125,6 +125,7 @@ void UI(Bool restart, int argc, char **argv, bool interactive,
       InitMap(watchPoints,exposedKeys);
       exposedKeys.push_back("modelimagename");
       watchPoints["residual"]=exposedKeys;
+      watchPoints["wisresidual"]=exposedKeys;
       watchPoints["predict"]=exposedKeys;
       
       // Expose the datacolumn parameter only for mode=residual

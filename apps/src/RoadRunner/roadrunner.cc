@@ -350,15 +350,27 @@ std::tuple<double,double,float> computeWiSWeightSums(vi::VisBuffer2* vb_l,
 {
   Cube<Complex> modelCube=vb_l->visCubeModel();
   Matrix<Float> imagingWeight=vb_l->imagingWeight();
+  Cube<Bool> flagCube=vb_l->flagCube();
 
   double sumWeight=0.0;
   double sumWeightedResidual=0.0;
   float maxRes=0.0;
 
+  const int nPol=dataCube.shape()(0);
   for(int ic=0; ic<dataCube.shape()(1); ic++)
     for(int ir=0; ir<dataCube.shape()(2); ir++)
       {
-        float thisResVis=abs(dataCube(0,ic,ir)-modelCube(0,ic,ir));
+        float thisResVis=0.0;
+        int nUnflaggedPol=0;
+        for(int ip=0; ip<nPol; ip++)
+          if (!flagCube(ip,ic,ir))
+            {
+              thisResVis += abs(dataCube(ip,ic,ir)-modelCube(ip,ic,ir));
+              nUnflaggedPol++;
+            }
+        if (nUnflaggedPol == 0) continue;
+
+        thisResVis /= nUnflaggedPol;
         float thisWeight=imagingWeight(ic,ir);
         sumWeight += thisWeight;
         sumWeightedResidual += thisWeight*thisResVis;
@@ -368,35 +380,59 @@ std::tuple<double,double,float> computeWiSWeightSums(vi::VisBuffer2* vb_l,
   return std::make_tuple(sumWeight, sumWeightedResidual, maxRes);
 }
 
+Cube<Complex> makeResidualVisCube(vi::VisBuffer2* vb_l,
+                                  const Cube<Complex>& dataCube)
+{
+  Cube<Complex> residualCube(dataCube.copy());
+  residualCube -= vb_l->visCubeModel();
+  return residualCube;
+}
+
 void setupForWiSImaging(vi::VisBuffer2* vb_l,
                         const Cube<Complex>& dataCube,
-                        const float& fluxPreservingScale)
+                        const float& fluxPreservingScale,
+                        const bool& gridResidualVis)
 {
   Cube<Complex> modelCube=vb_l->visCubeModel();
-  Matrix<float> resVis(modelCube.shape()(1),modelCube.shape()(2));
+  Matrix<float> resVis(modelCube.shape()(1),modelCube.shape()(2),0.0);
+  Cube<Bool> flagCube=vb_l->flagCube();
 
-  // Compute residual vis.
+  // Compute per-row/channel WiS weights from the average unflagged
+  // residual amplitude.  The previous implementation used only
+  // polarization 0 and did not skip fully flagged samples, so later
+  // cycles could be driven by stale/invalid polarization samples while
+  // the saved complex grid changed substantially.
   float maxRes=0.0;
-  //Complex maxMod=0.0;
+  const int nPol=dataCube.shape()(0);
   for(int ic=0; ic<dataCube.shape()(1); ic++)
     for(int ir=0;ir<dataCube.shape()(2); ir++)
       {
-        float thisResVis=abs(dataCube(0,ic,ir)-modelCube(0,ic,ir));
-        //resVis(ic,ir) = thisResVis;
+        float thisResVis=0.0;
+        int nUnflaggedPol=0;
+        for(int ip=0; ip<nPol; ip++)
+          if (!flagCube(ip,ic,ir))
+            {
+              thisResVis += abs(dataCube(ip,ic,ir)-modelCube(ip,ic,ir));
+              nUnflaggedPol++;
+            }
+        if (nUnflaggedPol == 0) continue;
+
+        thisResVis /= nUnflaggedPol;
         resVis(ic,ir) = thisResVis*fluxPreservingScale;
         if (thisResVis > maxRes) maxRes=thisResVis;
-        //if (modelCube(0,ic,ir) > maxMod) maxMod=modelCube(0,ic,ir);
       }
-  //cerr << "###############Max res = " << maxRes << " " << maxMod << endl;
+
   cerr << "###############Max res = " << maxRes
        << ", WiS flux-preserving scale = " << fluxPreservingScale << endl;
 
-  // Noramlize for a flux-preserving weighting function.  Not sure if
-  // this way of doing the normalization is entierly correct.
-  //resVis = resVis/maxRes;
-  // Set the dataCube and imaging weights for consumstion in ftm_g->put()
+  // Set the data cube and imaging weights for consumption in ftm_g->put().
+  // WiS residual imaging must grid the signed complex residuals, not the
+  // original data with residual-dependent weights.  Gridding the original
+  // data left model flux in the dirty image and produced positive/negative
+  // residual blobs that CLEAN could spend many iterations chasing.
   vb_l->setImagingWeight(vb_l->imagingWeight()*resVis);
-  vb_l->setVisCube(dataCube);
+  if (gridResidualVis) vb_l->setVisCube(makeResidualVisCube(vb_l,dataCube));
+  else                 vb_l->setVisCube(dataCube);
 }
 //
 //---------------------------------------------------------------------------------------
@@ -838,7 +874,8 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 	    else if (dataCol_l==casa::refim::FTMachine::MODEL)  {dataCube=vb_l->visCubeModel();}
 	    else                                                {dataCube=vb_l->visCube();}
 
-            if (HAS_MACRO(imagingMode,"wis")) setupForWiSImaging(vb_l,dataCube,wisFluxPreservingScale);
+            if (HAS_MACRO(imagingMode,"wis")) setupForWiSImaging(vb_l,dataCube,wisFluxPreservingScale,
+                                                              imagingMode=="wisresidual");
             else                              vb_l->setVisCube(dataCube);
 
 	    thisIOTime = std::chrono::steady_clock::now() - dataIO_start;
