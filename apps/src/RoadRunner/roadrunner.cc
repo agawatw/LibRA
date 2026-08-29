@@ -391,10 +391,11 @@ Cube<Complex> makeResidualVisCube(vi::VisBuffer2* vb_l,
 void setupForWiSImaging(vi::VisBuffer2* vb_l,
                         const Cube<Complex>& dataCube,
                         const float& fluxPreservingScale,
-                        const bool& gridResidualVis)
+                        const float& minWiSWeightScale,
+                        const float& maxWiSWeightScale)
 {
   Cube<Complex> modelCube=vb_l->visCubeModel();
-  Matrix<float> resVis(modelCube.shape()(1),modelCube.shape()(2),0.0);
+  Matrix<float> resVis(modelCube.shape()(1),modelCube.shape()(2),1.0);
   Cube<Bool> flagCube=vb_l->flagCube();
 
   // Compute per-row/channel WiS weights from the average unflagged
@@ -403,6 +404,8 @@ void setupForWiSImaging(vi::VisBuffer2* vb_l,
   // cycles could be driven by stale/invalid polarization samples while
   // the saved complex grid changed substantially.
   float maxRes=0.0;
+  float minScale=maxWiSWeightScale;
+  float maxScale=minWiSWeightScale;
   const int nPol=dataCube.shape()(0);
   for(int ic=0; ic<dataCube.shape()(1); ic++)
     for(int ir=0;ir<dataCube.shape()(2); ir++)
@@ -415,15 +418,24 @@ void setupForWiSImaging(vi::VisBuffer2* vb_l,
               thisResVis += abs(dataCube(ip,ic,ir)-modelCube(ip,ic,ir));
               nUnflaggedPol++;
             }
-        if (nUnflaggedPol == 0) continue;
-
+        if (nUnflaggedPol == 0) 
+        {
+        	resVis(ic,ir)=0.0;
+        	continue;
+        }
         thisResVis /= nUnflaggedPol;
-        resVis(ic,ir) = thisResVis*fluxPreservingScale;
+        float wisScale=thisResVis*fluxPreservingScale;
+        wisScale=std::min(std::max(wisScale,minWiSWeightScale),maxWiSWeightScale);
+        resVis(ic,ir)=wisScale;
+
         if (thisResVis > maxRes) maxRes=thisResVis;
+        if (wisScale < minScale) minScale=wisScale;
+        if (wisScale > maxScale) maxScale=wisScale;
       }
 
   cerr << "###############Max res = " << maxRes
-       << ", WiS flux-preserving scale = " << fluxPreservingScale << endl;
+       << ", WiS flux-preserving scale = " << fluxPreservingScale
+       << ", bounded WiS scale range = [" << minScale << ", " << maxScale << "]" << endl;
 
   // Set the data cube and imaging weights for consumption in ftm_g->put().
   // WiS residual imaging must grid the signed complex residuals, not the
@@ -431,8 +443,8 @@ void setupForWiSImaging(vi::VisBuffer2* vb_l,
   // data left model flux in the dirty image and produced positive/negative
   // residual blobs that CLEAN could spend many iterations chasing.
   vb_l->setImagingWeight(vb_l->imagingWeight()*resVis);
-  if (gridResidualVis) vb_l->setVisCube(makeResidualVisCube(vb_l,dataCube));
-  else                 vb_l->setVisCube(dataCube);
+  vb_l->setVisCube(dataCube);
+
 }
 //
 //---------------------------------------------------------------------------------------
@@ -776,6 +788,8 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       DataIterator di(isRoot,dataCol_l);
 
       float wisFluxPreservingScale=1.0;
+      const float minWiSWeightScale=0.25;
+      const float maxWiSWeightScale=4.0;
       if (HAS_MACRO(imagingMode,"wis"))
         {
           double sumWeight=0.0;
@@ -835,7 +849,7 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
       //
 
       auto dataConsumerFTM =
-	[&imagingMode, &modelImageName, &doPSF, &dataCol_l, &wisFluxPreservingScale]
+	[&imagingMode, &modelImageName, &doPSF, &dataCol_l, &wisFluxPreservingScale, &minWiSWeightScale, &maxWiSWeightScale]
 	(vi::VisBuffer2 *vb_l, vi::VisibilityIterator2 *vi2_l)
       {
 	std::chrono::time_point<std::chrono::steady_clock> dataIO_start;
@@ -874,8 +888,9 @@ auto Roadrunner(//bool& restartUI, int& argc, char** argv,
 	    else if (dataCol_l==casa::refim::FTMachine::MODEL)  {dataCube=vb_l->visCubeModel();}
 	    else                                                {dataCube=vb_l->visCube();}
 
-            if (HAS_MACRO(imagingMode,"wis")) setupForWiSImaging(vb_l,dataCube,wisFluxPreservingScale,
-                                                              imagingMode=="wisresidual");
+            if (HAS_MACRO(imagingMode,"wis")) setupForWiSImaging(vb_l,dataCube,wisFluxPreservingScale,                                                            
+                                                              minWiSWeightScale,
+                                                              maxWiSWeightScale);
             else                              vb_l->setVisCube(dataCube);
 
 	    thisIOTime = std::chrono::steady_clock::now() - dataIO_start;

@@ -197,9 +197,8 @@ unsigned mRow=0;
 					    {
 					      vis[visVecElement] = casaVBS.visCube_p(ipol,ichan,irow);
 					    }
-
-					  //wt[visVecElement]=casaVBS.imagingWeight_p(ichan,irow);
-                                          wt[visVecElement]=casaVB.imagingWeight()(ichan,irow);
+              //wt[visVecElement]=casaVB.imagingWeight()(ichan,irow);
+              wt[visVecElement]=casaVBS.imagingWeight_p(ichan,irow);
 					}
 				      else
 					{
@@ -210,7 +209,8 @@ unsigned mRow=0;
 				  mRow++;
 				  if (((targetIMPol>=0) && (targetIMPol<nGridPol)) &&
 				      (((targetIMChan>=0) && (targetIMChan<nGridChan))))
-				    sumwt(targetIMPol,targetIMChan) += casaVB.imagingWeight()(ichan, irow);//*abs(norm);
+				    //sumwt(targetIMPol,targetIMChan) += casaVB.imagingWeight()(ichan, irow);//*abs(norm);
+				    sumwt(targetIMPol,targetIMChan) += casaVBS.imagingWeight_p(ichan, irow);//*abs(norm);
 				}
 			    }
 			} // End poln-loop
@@ -522,7 +522,8 @@ unsigned mRow=0;
 				  mRow++;
 				  if (((targetIMPol>=0) && (targetIMPol<nGridPol)) &&
 				      (((targetIMChan>=0) && (targetIMChan<nGridChan))))
-				    sumwt(targetIMPol,targetIMChan) += casaVB.imagingWeight()(ichan, irow);//*abs(norm);
+				    //sumwt(targetIMPol,targetIMChan) += casaVB.imagingWeight()(ichan, irow);//*abs(norm);
+				    sumwt(targetIMPol,targetIMChan) += casaVBS.imagingWeight_p(ichan, irow);//*abs(norm);
 				}
 			    }
 			} // End poln-loop
