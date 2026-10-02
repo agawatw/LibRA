@@ -82,8 +82,8 @@ public:
   // Create a cleaner : default constructor
   AspMatrixCleaner();
 
-  // The destructor does nothing special.
-  ~AspMatrixCleaner();
+  // The base class is intended to be extended by alternative Asp algorithms.
+  virtual ~AspMatrixCleaner();
 
   casacore::Bool setaspcontrol(const casacore::Int niter,
       const casacore::Float gain, const casacore::Quantity& aThreshold,
@@ -103,23 +103,25 @@ public:
   float getPsfGaussianWidth(casacore::ImageInterface<casacore::Float>& psf);
   void getLargestScaleSize(casacore::ImageInterface<casacore::Float>& psf);
 
-  // Make an image of the specified scale by Gaussian
-  void makeInitScaleImage(casacore::Matrix<casacore::Float>& iscale, const casacore::Float& scaleSize);
-  void makeScaleImage(casacore::Matrix<casacore::Float>& iscale, const casacore::Float& scaleSize, const casacore::Float& amp, const casacore::IPosition& center);
+  // Make an image of the specified scale.  The default implementation uses
+  // the historical Gaussian Asp component; subclasses may provide another
+  // component model without duplicating the minor-cycle implementation.
+  virtual void makeInitScaleImage(casacore::Matrix<casacore::Float>& iscale, const casacore::Float& scaleSize);
+  virtual void makeScaleImage(casacore::Matrix<casacore::Float>& iscale, const casacore::Float& scaleSize, const casacore::Float& amp, const casacore::IPosition& center);
 
   void setInitScales();
-  void setInitScaleXfrs(const casacore::Float width);
+  virtual void setInitScaleXfrs(const casacore::Float width);
 
   // calculate the convolutions of the psf with the initial scales
   void setInitScalePsfs();
 
   //casacore::Bool setInitScaleMasks(const casacore::Array<casacore::Float> arrmask, const casacore::Float& maskThreshold = 0.99);
-  casacore::Bool setInitScaleMasks(const casacore::Matrix<casacore::Float> & mask, const casacore::Float& maskThreshold = 0.99); //diverge from casa6
+  virtual casacore::Bool setInitScaleMasks(const casacore::Matrix<casacore::Float> & mask, const casacore::Float& maskThreshold = 0.99); //diverge from casa6
 
   void maxDirtyConvInitScales(float& strengthOptimum, int& optimumScale, casacore::IPosition& positionOptimum);
 
   // returns the active-set aspen for cleaning
-  std::vector<casacore::Float> getActiveSetAspen(const float peakres);
+  virtual std::vector<casacore::Float> getActiveSetAspen(const float peakres);
 
   // Juat define the active-set aspen scales
   void defineAspScales(std::vector<casacore::Float>& scaleSizes);
@@ -139,8 +141,8 @@ public:
   void setBinSizeForSumFlux(const casacore::Int binSize = 4) { itsBinSizeForSumFlux = binSize ; } ;
   void getFluxByBins(const std::vector<casacore::Float>& scaleSizes,const std::vector<casacore::Float>& optimum, casacore::Int binSize, std::vector<casacore::Float>&  sumFluxByBins, std::vector<casacore::Float>&  rangeFluxByBins);
 
-  virtual float computePeakNormalization(float width) { return sqrt(2 * M_PI * width);}
-  virtual float computeScaleNormalization(float width1, float width2) { return sqrt(2 * M_PI / (pow(1.0/width1, 2) + pow(1.0/width2, 2)));}
+  virtual float computePeakNormalization(float width) const { return sqrt(2 * M_PI * width);}
+  virtual float computeScaleNormalization(float width1, float width2) const { return sqrt(2 * M_PI / (pow(1.0/width1, 2) + pow(1.0/width2, 2)));}
   virtual void runLBFGS(
     alglib::minlbfgsstate &state,
     alglib::real_1d_array &x,
@@ -148,9 +150,24 @@ public:
     const std::vector<casacore::IPosition> &activeSetCenter,
     casacore::FFTServer<casacore::Float,casacore::Complex> &fft) const;
 
+  virtual void updateModelAndResidual(
+    casacore::Matrix<casacore::Float>& model, const casacore::IPosition& support);
+
+  // default to true
+  virtual casacore::Bool useLegacyStrengthLogic() const;
+  virtual casacore::Bool useHogbomFallback() const;
+  virtual casacore::Bool useLegacyScaleImagePath() const;
 
 protected:
 //private:
+
+  // The Asp base calss uses the largest initial scale to define the support.  
+  // Child classes can provide their patch support directly.
+  virtual casacore::IPosition componentSupport(const casacore::IPosition& imageShape) const;
+
+  // Child class should Call this after component selection and before the component is applied.
+  // Asp components are already optimised by getActiveSetAspen().
+  virtual void optimizeComponent();
 
   using MatrixCleaner::findMaxAbs;
   using MatrixCleaner::findMaxAbsMask;
@@ -170,6 +187,9 @@ protected:
   casacore::Block<casacore::Matrix<casacore::Float> > itsInitScaleMasks;
   casacore::Block<casacore::Matrix<casacore::Float> > itsPsfConvInitScales;
 
+  casacore::Matrix<casacore::Float> itsScale;
+  casacore::Matrix<casacore::Complex> itsScaleXfr;
+  
   using MatrixCleaner::itsIteration;
   using MatrixCleaner::itsStartingIter;
   using MatrixCleaner::itsFracThreshold;
