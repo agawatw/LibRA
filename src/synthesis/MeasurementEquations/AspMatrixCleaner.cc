@@ -192,8 +192,8 @@ Int AspMatrixCleaner::aspclean(Matrix<Float>& model,
   Matrix<Float> itsScale0 = Matrix<Float>(psfShape_p);
   Matrix<Complex>itsScaleXfr0 = Matrix<Complex> ();
 
-  itsScale = Matrix<Float>(psfShape_p);
-  itsScaleXfr = Matrix<Complex> ();
+  Matrix<Float> itsScale(psfShape_p);
+  Matrix<Complex> itsScaleXfr;
 
   // Define a subregion so that the selected component is centered.
   IPosition support(componentSupport(model.shape()));
@@ -500,10 +500,7 @@ Int AspMatrixCleaner::aspclean(Matrix<Float>& model,
         break;
     }
 
-
-
-    updateModelAndResidual(model, support);
-
+    updateModelAndResidual(model, support, itsScale, itsScaleXfr);
 
     // update peakres
     itsPrevPeakResidual = itsPeakResidual;
@@ -642,7 +639,8 @@ Bool AspMatrixCleaner::destroyInitMasks()
 }
 
 void AspMatrixCleaner::updateModelAndResidual(
-    Matrix<Float>& model, const IPosition& support)
+    Matrix<Float>& model, const IPosition& support,
+    const Matrix<Float>& scale, const Matrix<Complex>& scaleXfr)
 {
   IPosition blc(itsPositionOptimum - support/2);
   IPosition trc(itsPositionOptimum + support/2 - 1);
@@ -657,11 +655,11 @@ void AspMatrixCleaner::updateModelAndResidual(
   // component scaled by its fitted strength and the CLEAN gain.
   Matrix<Float> modelSub = model(blc, trc);
   const Float scaleFactor = itsGain * itsStrengthOptimum;
-  Matrix<Float> scaleSub = itsScale(blcPsf, trcPsf);
+  Matrix<Float> scaleSub = scale(blcPsf, trcPsf);
   modelSub += scaleFactor * scaleSub;
 
   // Compute the PSF-convolved optimized component.
-  Matrix<Complex> cWork = ((*itsXfr) * itsScaleXfr);
+  Matrix<Complex> cWork = ((*itsXfr) * scaleXfr);
   Matrix<Float> psfConvScale(psfShape_p);
   fft.fft0(psfConvScale, cWork, false);
   fft.flip(psfConvScale, false, false);
