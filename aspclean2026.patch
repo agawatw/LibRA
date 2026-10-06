@@ -1,0 +1,433 @@
+diff --git a/apps/src/Hummbee/hummbee_cl_interface.cc b/apps/src/Hummbee/hummbee_cl_interface.cc
+index 2cf03e6..105f914 100644
+--- a/apps/src/Hummbee/hummbee_cl_interface.cc
++++ b/apps/src/Hummbee/hummbee_cl_interface.cc
+@@ -129,9 +129,10 @@ void UI(bool restart, int argc, char **argv, bool interactive,
+       exposedKeys.push_back("largestscale");
+       exposedKeys.push_back("fusedthreshold");
+       watchPoints["asp"]=exposedKeys;
++      watchPoints["asp2026"]=exposedKeys;
+
+       i=1;clgetSValp("deconvolver", deconvolver, i ,watchPoints);
+-      clSetOptions("deconvolver",{"hogbom","mtmfs","clark", "multiscale","asp"}); //genie todo: add full list
++      clSetOptions("deconvolver",{"hogbom","mtmfs","clark", "multiscale","asp","asp2026"}); //genie todo: add full list
+
+       int N;
+       N=0; N=clgetNFValp("scales", scales, N);
+diff --git a/apps/src/Hummbee/test_hummbee.cc b/apps/src/Hummbee/test_hummbee.cc
+index 573cec4..7958b57 100644
+--- a/apps/src/Hummbee/test_hummbee.cc
++++ b/apps/src/Hummbee/test_hummbee.cc
+@@ -27,6 +27,7 @@
+ #include <tests/test_utils.h>
+ #include <tests/test_utils.h>
+ #include <libracore/LibracoreUtils.h>
++#include <cmath>
+ using namespace std;
+ using namespace std::filesystem;
+ using namespace libracore::utils;
+@@ -304,6 +305,63 @@ TEST(HummbeeTest,  AppLevelMfsAsp) {
+
+ }
+
++TEST(HummbeeTest, AppLevelMfsAsp2026) {
++
++  // Use the same MFS inputs as AppLevelMfsAsp so this test isolates
++  // selection and execution of the AspClean2026 minor-cycle algorithm.
++  string testName = ::testing::UnitTest::GetInstance()->current_test_info()->name();
++  path testDir = current_path() / testName;
++  std::filesystem::create_directory(testDir);
++
++  copy(goldDir/"unittest_hummbee_mfs_revE.psf",
++       testDir/"unittest_hummbee_mfs_revE.psf", copy_options::recursive);
++  copy(goldDir/"unittest_hummbee_mfs_revE.residual",
++       testDir/"unittest_hummbee_mfs_revE.residual", copy_options::recursive);
++  copy(goldDir/"unittest_hummbee_mfs_revE.sumwt",
++       testDir/"unittest_hummbee_mfs_revE.sumwt", copy_options::recursive);
++  copy(goldDir/"unittest_hummbee_mfs_revE.weight",
++       testDir/"unittest_hummbee_mfs_revE.weight", copy_options::recursive);
++
++  current_path(testDir);
++
++  string imageName = "unittest_hummbee_mfs_revE";
++  string modelImageName = "unittest_hummbee_mfs_revE.image";
++  string deconvolver = "asp2026", specmode = "mfs";
++  vector<float> scales;
++  float largestscale = -1;
++  float fusedthreshold = 0.007;
++  int nterms = 1;
++  float gain = 0.2;
++  float threshold = 2.6e-07;
++  float nsigma = 0.0;
++  int cycleniter = 3;
++  float cyclefactor = 1.0;
++  vector<string> mask{
++      "box[[890pix,1478pix],[1908pix,2131pix]]",
++      "box[[1794pix,1828pix],[2225pix,2232pix]]",
++      "box[[2077pix,1989pix],[3270pix,2616pix]]"};
++  bool doPBCorr = false;
++  string imagingMode = "deconvolve";
++
++  const float peakRes = Hummbee(
++      imageName, modelImageName, deconvolver, scales, largestscale,
++      fusedthreshold, nterms, gain, threshold, nsigma, cycleniter,
++      cyclefactor, mask, specmode, doPBCorr, imagingMode);
++
++  EXPECT_TRUE(std::isfinite(peakRes));
++  EXPECT_GE(peakRes, 0.0f);
++
++  const path modelPath("unittest_hummbee_mfs_revE.model");
++  ASSERT_TRUE(exists(modelPath));
++  PagedImage<Float> modelimage("unittest_hummbee_mfs_revE.model");
++  Array<Float> modelValues;
++  modelimage.get(modelValues, true);
++  EXPECT_GT(sum(abs(modelValues)), 0.0f);
++
++  current_path(testDir.parent_path());
++  libracore::utils::remove_directory(testDir);
++}
++
+
+ TEST(HummbeeTest,  AppLevelWAsp) {
+
+diff --git a/src/synthesis/ImagerObjects/SDAlgorithmAspClean2026.cc b/src/synthesis/ImagerObjects/SDAlgorithmAspClean2026.cc
+new file mode 100644
+index 0000000..10d06f5
+--- /dev/null
++++ b/src/synthesis/ImagerObjects/SDAlgorithmAspClean2026.cc
+@@ -0,0 +1,113 @@
++//# SDAlgorithmAspClean2026.cc: Implementation of SDAlgorithmAspClean2026
++
++#include <synthesis/ImagerObjects/SDAlgorithmAspClean2026.h>
++
++#include <casacore/casa/Arrays/ArrayMath.h>
++#include <casacore/casa/Arrays/Matrix.h>
++#include <casacore/casa/Exceptions/Error.h>
++#include <casacore/casa/Logging/LogIO.h>
++#include <casacore/casa/Quanta/Quantum.h>
++#include <casacore/casa/Utilities/Assert.h>
++
++#include <synthesis/ImagerObjects/SIImageStore.h>
++
++#include <vector>
++
++using namespace casacore;
++
++namespace casa {
++
++SDAlgorithmAspClean2026::SDAlgorithmAspClean2026(bool isSingle)
++    : SDAlgorithmBase(),
++      itsMatPsf(),
++      itsMatResidual(),
++      itsMatModel(),
++      itsMatMask(),
++      itsCleaner(),
++      itsMCsetup(true),
++      itsIsSingle(isSingle)
++{
++  itsAlgorithmName = String("asp2026");
++}
++
++SDAlgorithmAspClean2026::~SDAlgorithmAspClean2026() = default;
++
++void SDAlgorithmAspClean2026::initializeDeconvolver()
++{
++  LogIO os(LogOrigin("SDAlgorithmAspClean2026", "initializeDeconvolver", WHERE));
++  AlwaysAssert(static_cast<bool>(itsImages), AipsError);
++
++  itsImages->residual()->get(itsMatResidual, true);
++  itsImages->model()->get(itsMatModel, true);
++  itsImages->psf()->get(itsMatPsf, true);
++  itsImages->mask()->get(itsMatMask, true);
++
++  // A cube can present a different PSF for each channel, whereas an MFS
++  // minor cycle can reuse this setup.
++  if (itsMCsetup)
++  {
++    Matrix<Float> psf(itsMatPsf);
++    itsCleaner.setPsf(psf);
++    itsCleaner.setInitScaleXfrs(0.0f);
++    itsCleaner.ignoreCenterBox(true);
++
++    if (itsIsSingle)
++      itsMCsetup = false;
++  }
++
++  Matrix<Float> mask(itsMatMask);
++  itsCleaner.setInitScaleMasks(mask, 0.99f);
++  itsCleaner.setaspcontrol(0, 0, 0, Quantity(0.0, "%"));
++
++  Matrix<Float> residual;
++  residual.reference(itsMatResidual);
++  itsCleaner.setDirty(residual);
++
++  // AspClean2026 builds its component directly from the residual, but the
++  // shared Asp minor-cycle driver still requires a valid scale list.
++  std::vector<Float> scales{0.0f};
++  itsCleaner.defineAspScales(scales);
++}
++
++void SDAlgorithmAspClean2026::takeOneStep(
++    Float loopgain,
++    Int cycleNiter,
++    Float cycleThreshold,
++    Float& peakresidual,
++    Float& modelflux,
++    Int& iterdone)
++{
++  LogIO os(LogOrigin("SDAlgorithmAspClean2026", "takeOneStep", WHERE));
++
++  itsCleaner.setaspcontrol(
++      cycleNiter, loopgain, Quantity(cycleThreshold, "Jy"), Quantity(0.0, "%"));
++
++  Matrix<Float> model;
++  model.reference(itsMatModel);
++
++  itsCleaner.startingIteration(0);
++  const Int result = itsCleaner.aspclean(model);
++  iterdone = itsCleaner.numberIterations();
++
++  if (result == -1)
++    os << LogIO::WARN << "AspClean2026 minor cycle stopped in point mode"
++       << LogIO::POST;
++  else if (result == -2)
++    os << LogIO::WARN << "AspClean2026 minor cycle stopped after a large-scale divergence"
++       << LogIO::POST;
++  else if (result == -3)
++    os << LogIO::WARN << "AspClean2026 minor cycle stopped because it is diverging"
++       << LogIO::POST;
++
++  itsMatResidual = itsCleaner.getterResidual();
++  peakresidual = itsCleaner.getterPeakResidual();
++  modelflux = sum(itsMatModel);
++}
++
++void SDAlgorithmAspClean2026::finalizeDeconvolver()
++{
++  itsImages->residual()->put(itsMatResidual);
++  itsImages->model()->put(itsMatModel);
++}
++
++} // namespace casa
+diff --git a/src/synthesis/ImagerObjects/SDAlgorithmAspClean2026.h b/src/synthesis/ImagerObjects/SDAlgorithmAspClean2026.h
+new file mode 100644
+index 0000000..1089b00
+--- /dev/null
++++ b/src/synthesis/ImagerObjects/SDAlgorithmAspClean2026.h
+@@ -0,0 +1,45 @@
++//# SDAlgorithmAspClean2026.h: Definition for SDAlgorithmAspClean2026
++
++#ifndef SYNTHESIS_SDALGORITHMASPCLEAN2026_H
++#define SYNTHESIS_SDALGORITHMASPCLEAN2026_H
++
++#include <casacore/casa/Arrays/Array.h>
++#include <casacore/casa/BasicSL/String.h>
++
++#include <synthesis/ImagerObjects/SDAlgorithmBase.h>
++#include <synthesis/MeasurementEquations/AspClean2026.h>
++
++namespace casa {
++
++class SDAlgorithmAspClean2026 : public SDAlgorithmBase
++{
++public:
++  explicit SDAlgorithmAspClean2026(bool isSingle = true);
++  ~SDAlgorithmAspClean2026() override;
++
++protected:
++  void takeOneStep(
++      casacore::Float loopgain,
++      casacore::Int cycleNiter,
++      casacore::Float cycleThreshold,
++      casacore::Float& peakresidual,
++      casacore::Float& modelflux,
++      casacore::Int& iterdone) override;
++
++  void initializeDeconvolver() override;
++  void finalizeDeconvolver() override;
++
++private:
++  casacore::Array<casacore::Float> itsMatPsf;
++  casacore::Array<casacore::Float> itsMatResidual;
++  casacore::Array<casacore::Float> itsMatModel;
++  casacore::Array<casacore::Float> itsMatMask;
++
++  AspClean2026 itsCleaner;
++  casacore::Bool itsMCsetup;
++  bool itsIsSingle;
++};
++
++} // namespace casa
++
++#endif
+diff --git a/src/synthesis/ImagerObjects/SynthesisDeconvolver.cc b/src/synthesis/ImagerObjects/SynthesisDeconvolver.cc
+index a5f85af..32aa334 100644
+--- a/src/synthesis/ImagerObjects/SynthesisDeconvolver.cc
++++ b/src/synthesis/ImagerObjects/SynthesisDeconvolver.cc
+@@ -145,6 +145,11 @@ namespace casa { //# NAMESPACE CASA - BEGIN
+ 	  {
+ 	    itsDeconvolver.reset(new SDAlgorithmMEM( "entropy" ));
+ 	  }
++	else if (decpars.algorithm==String("asp2026"))
++	  {
++	    const bool isSingle = decpars.specmode == String("mfs");
++	    itsDeconvolver.reset(new SDAlgorithmAspClean2026(isSingle));
++	  }
+ 	else if (decpars.algorithm==String("asp"))
+ 	  {
+       bool isSingle = false;
+diff --git a/src/synthesis/ImagerObjects/SynthesisDeconvolver.h b/src/synthesis/ImagerObjects/SynthesisDeconvolver.h
+index 270b98f..7da6d67 100644
+--- a/src/synthesis/ImagerObjects/SynthesisDeconvolver.h
++++ b/src/synthesis/ImagerObjects/SynthesisDeconvolver.h
+@@ -43,6 +43,7 @@
+ #include<synthesis/ImagerObjects/SDAlgorithmMSClean.h>
+ #include<synthesis/ImagerObjects/SDAlgorithmMEM.h>
+ #include<synthesis/ImagerObjects/SDAlgorithmAAspClean.h>
++#include<synthesis/ImagerObjects/SDAlgorithmAspClean2026.h>
+ #include<synthesis/ImagerObjects/SDAlgorithmMTAspClean.h>
+
+ #include<synthesis/ImagerObjects/SDMaskHandler.h>
+diff --git a/src/synthesis/MeasurementEquations/AspClean2026.cc b/src/synthesis/MeasurementEquations/AspClean2026.cc
+index d0c5c13..9cca76e 100644
+--- a/src/synthesis/MeasurementEquations/AspClean2026.cc
++++ b/src/synthesis/MeasurementEquations/AspClean2026.cc
+@@ -93,20 +93,18 @@ void runAspClean2026LBFGS(
+
+ struct AspClean2026LBFGSContext
+ {
+-  const AspClean2026* cleaner;
++  AspClean2026* cleaner;
+ };
+
+ constexpr Float fracMin = 0.60f;
+ constexpr Float fracMax = 0.99f;
+ constexpr Float minEpsFrac = 1.0e-6f;
+-constexpr Float maxTransform = 20.0f;
++constexpr double maxTransform = 20.0;
+
+ } // namespace
+
+ AspClean2026::AspClean2026()
+-    : //itsResidualComponentSupport(2, 1),
+-      itsSwitchedToHogbom(false),
+-      itsFrac(0.8f),
++    : itsFrac(0.8f),
+       itsEpsFrac(0.1f),
+       itsPeakValue(0.0f),
+       itsPeakSign(1.0f)
+@@ -255,7 +253,7 @@ Matrix<Float> AspClean2026::makeTanhComponent(
+ }
+
+ Matrix<Float> AspClean2026::convolveComponent(
+-    const Matrix<Float>& component) const
++    const Matrix<Float>& component)
+ {
+   Matrix<Complex> componentXfr;
+   fft.fft0(componentXfr, component);
+@@ -289,7 +287,7 @@ Float AspClean2026::objective(
+     const Float frac,
+     const Float epsFrac,
+     Matrix<Float>* component,
+-    Matrix<Float>* convolved) const
++    Matrix<Float>* convolved)
+ {
+   const Matrix<Float> localComponent =
+       makeTanhComponent(frac, epsFrac);
+@@ -355,7 +353,7 @@ void AspClean2026::lbfgsObjective(
+     void* ptr)
+ {
+   auto* context = static_cast<AspClean2026LBFGSContext*>(ptr);
+-  const AspClean2026* cleaner = context->cleaner;
++  AspClean2026* cleaner = context->cleaner;
+
+   const Float frac = transformedFrac(x[0]);
+   const Float epsFrac = transformedEpsFrac(x[1]);
+@@ -456,5 +454,19 @@ IPosition AspClean2026::componentSupport(
+   return imageShape;
+ }
+
+-} // namespace casa
++Bool AspClean2026::useLegacyStrengthLogic() const
++{
++  return false;
++}
++
++Bool AspClean2026::useHogbomFallback() const
++{
++  return false;
++}
+
++Bool AspClean2026::useLegacyScaleImagePath() const
++{
++  return false;
++}
++
++} // namespace casa
+diff --git a/src/synthesis/MeasurementEquations/AspClean2026.h b/src/synthesis/MeasurementEquations/AspClean2026.h
+index af33d39..e54de74 100644
+--- a/src/synthesis/MeasurementEquations/AspClean2026.h
++++ b/src/synthesis/MeasurementEquations/AspClean2026.h
+@@ -43,12 +43,14 @@ public:
+   AspClean2026();
+   ~AspClean2026() override;
+
+-protected:
++  // Public setup hooks used by the synthesis deconvolution adapter.
+   void setInitScaleXfrs(const casacore::Float width) override;
+
+   casacore::Bool setInitScaleMasks(
+       const casacore::Matrix<casacore::Float>& mask,
+-      const casacore::Float& maskThreshold) override;
++      const casacore::Float& maskThreshold = 0.99f) override;
++
++protected:
+
+   std::vector<casacore::Float> getActiveSetAspen(
+       const float peakres) override;
+@@ -79,8 +81,6 @@ protected:
+   casacore::Bool useLegacyScaleImagePath() const override;
+
+ private:
+-  using AspMatrixCleaner::itsSwitchedToHogbom;
+-  
+   casacore::Bool insideCleanWindow(casacore::Int i, casacore::Int j) const;
+
+   void extractResidualPeak();
+@@ -90,13 +90,13 @@ private:
+       casacore::Float epsFrac) const;
+
+   casacore::Matrix<casacore::Float> convolveComponent(
+-      const casacore::Matrix<casacore::Float>& component) const;
++      const casacore::Matrix<casacore::Float>& component);
+
+   casacore::Float objective(
+       casacore::Float frac,
+       casacore::Float epsFrac,
+       casacore::Matrix<casacore::Float>* component = nullptr,
+-      casacore::Matrix<casacore::Float>* convolved = nullptr) const;
++      casacore::Matrix<casacore::Float>* convolved = nullptr);
+
+   static void lbfgsObjective(
+       const alglib::real_1d_array& x,
+@@ -121,4 +121,3 @@ private:
+ } // namespace casa
+
+ #endif
+-
+diff --git a/src/synthesis/MeasurementEquations/AspMatrixCleaner.h b/src/synthesis/MeasurementEquations/AspMatrixCleaner.h
+index 9a0c335..c0d86d3 100644
+--- a/src/synthesis/MeasurementEquations/AspMatrixCleaner.h
++++ b/src/synthesis/MeasurementEquations/AspMatrixCleaner.h
+@@ -151,7 +151,10 @@ public:
+     casacore::FFTServer<casacore::Float,casacore::Complex> &fft) const;
+
+   virtual void updateModelAndResidual(
+-    casacore::Matrix<casacore::Float>& model, const casacore::IPosition& support);
++    casacore::Matrix<casacore::Float>& model,
++    const casacore::IPosition& support,
++    const casacore::Matrix<casacore::Float>& scale,
++    const casacore::Matrix<casacore::Complex>& scaleXfr);
+
+   // default to true
+   virtual casacore::Bool useLegacyStrengthLogic() const;
