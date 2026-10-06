@@ -157,6 +157,14 @@ namespace casa { //# NAMESPACE CASA - BEGIN
       else //narrow-band. WAsp can be use for cube imaging as well but for now let AspClean handle that.
 	      itsDeconvolver.reset(new SDAlgorithmAAspClean(decpars.fusedThreshold, isSingle, decpars.largestscale));
 	  }
+    else if (decpars.algorithm==String("asp2026")) 
+    {
+      bool isSingle = false;
+      if (decpars.specmode == String("mfs"))
+        isSingle = true;
+
+      itsDeconvolver.reset(new SDAlgorithmAspClean2026(isSingle));
+    }
   /*else if (decpars.algorithm==String("asp")) 
     {
       bool isSingle = false;

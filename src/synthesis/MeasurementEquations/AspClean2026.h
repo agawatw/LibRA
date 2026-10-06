@@ -43,12 +43,12 @@ public:
   AspClean2026();
   ~AspClean2026() override;
 
-protected:
+//protected:
   void setInitScaleXfrs(const casacore::Float width) override;
 
   casacore::Bool setInitScaleMasks(
       const casacore::Matrix<casacore::Float>& mask,
-      const casacore::Float& maskThreshold) override;
+      const casacore::Float& maskThreshold=0.99f) override;
 
   std::vector<casacore::Float> getActiveSetAspen(
       const float peakres) override;

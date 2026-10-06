@@ -129,9 +129,10 @@ void UI(bool restart, int argc, char **argv, bool interactive,
       exposedKeys.push_back("largestscale");
       exposedKeys.push_back("fusedthreshold");
       watchPoints["asp"]=exposedKeys;
+      watchPoints["asp2026"]=exposedKeys;
 
       i=1;clgetSValp("deconvolver", deconvolver, i ,watchPoints);
-      clSetOptions("deconvolver",{"hogbom","mtmfs","clark", "multiscale","asp"}); //genie todo: add full list
+      clSetOptions("deconvolver",{"hogbom","mtmfs","clark","multiscale","asp","asp2026"}); //genie todo: add full list
 
       int N;
       N=0; N=clgetNFValp("scales", scales, N);
