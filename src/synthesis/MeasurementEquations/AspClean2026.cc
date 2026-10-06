@@ -93,20 +93,18 @@ void runAspClean2026LBFGS(
 
 struct AspClean2026LBFGSContext
 {
-  const AspClean2026* cleaner;
+  AspClean2026* cleaner;
 };
 
 constexpr Float fracMin = 0.60f;
 constexpr Float fracMax = 0.99f;
 constexpr Float minEpsFrac = 1.0e-6f;
-constexpr Float maxTransform = 20.0f;
+constexpr double maxTransform = 20.0;
 
 } // namespace
 
 AspClean2026::AspClean2026()
-    : //itsResidualComponentSupport(2, 1),
-      itsSwitchedToHogbom(false),
-      itsFrac(0.8f),
+    : itsFrac(0.8f),
       itsEpsFrac(0.1f),
       itsPeakValue(0.0f),
       itsPeakSign(1.0f)
@@ -255,7 +253,7 @@ Matrix<Float> AspClean2026::makeTanhComponent(
 }
 
 Matrix<Float> AspClean2026::convolveComponent(
-    const Matrix<Float>& component) const
+    const Matrix<Float>& component)
 {
   Matrix<Complex> componentXfr;
   fft.fft0(componentXfr, component);
@@ -289,7 +287,7 @@ Float AspClean2026::objective(
     const Float frac,
     const Float epsFrac,
     Matrix<Float>* component,
-    Matrix<Float>* convolved) const
+    Matrix<Float>* convolved)
 {
   const Matrix<Float> localComponent =
       makeTanhComponent(frac, epsFrac);
@@ -355,7 +353,7 @@ void AspClean2026::lbfgsObjective(
     void* ptr)
 {
   auto* context = static_cast<AspClean2026LBFGSContext*>(ptr);
-  const AspClean2026* cleaner = context->cleaner;
+  AspClean2026* cleaner = context->cleaner;
 
   const Float frac = transformedFrac(x[0]);
   const Float epsFrac = transformedEpsFrac(x[1]);
@@ -456,5 +454,19 @@ IPosition AspClean2026::componentSupport(
   return imageShape;
 }
 
-} // namespace casa
+Bool AspClean2026::useLegacyStrengthLogic() const
+{
+  return false;
+}
 
+Bool AspClean2026::useHogbomFallback() const
+{
+  return false;
+}
+
+Bool AspClean2026::useLegacyScaleImagePath() const
+{
+  return false;
+}
+
+} // namespace casa
