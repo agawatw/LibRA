@@ -79,8 +79,7 @@ protected:
   casacore::Bool useLegacyScaleImagePath() const override;
 
 private:
-  using AspMatrixCleaner::itsSwitchedToHogbom;
-  
+
   casacore::Bool insideCleanWindow(casacore::Int i, casacore::Int j) const;
 
   void extractResidualPeak();
@@ -90,13 +89,13 @@ private:
       casacore::Float epsFrac) const;
 
   casacore::Matrix<casacore::Float> convolveComponent(
-      const casacore::Matrix<casacore::Float>& component) const;
+      const casacore::Matrix<casacore::Float>& component);
 
   casacore::Float objective(
       casacore::Float frac,
       casacore::Float epsFrac,
       casacore::Matrix<casacore::Float>* component = nullptr,
-      casacore::Matrix<casacore::Float>* convolved = nullptr) const;
+      casacore::Matrix<casacore::Float>* convolved = nullptr);
 
   static void lbfgsObjective(
       const alglib::real_1d_array& x,

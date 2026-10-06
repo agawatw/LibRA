@@ -151,7 +151,10 @@ public:
     casacore::FFTServer<casacore::Float,casacore::Complex> &fft) const;
 
   virtual void updateModelAndResidual(
-    casacore::Matrix<casacore::Float>& model, const casacore::IPosition& support);
+    casacore::Matrix<casacore::Float>& model,
+    const casacore::IPosition& support,
+    const casacore::Matrix<casacore::Float>& scale,
+    const casacore::Matrix<casacore::Complex>& scaleXfr);
 
   // default to true
   virtual casacore::Bool useLegacyStrengthLogic() const;
@@ -187,9 +190,7 @@ protected:
   casacore::Block<casacore::Matrix<casacore::Float> > itsInitScaleMasks;
   casacore::Block<casacore::Matrix<casacore::Float> > itsPsfConvInitScales;
 
-  casacore::Matrix<casacore::Float> itsScale;
-  casacore::Matrix<casacore::Complex> itsScaleXfr;
-  
+
   using MatrixCleaner::itsIteration;
   using MatrixCleaner::itsStartingIter;
   using MatrixCleaner::itsFracThreshold;
