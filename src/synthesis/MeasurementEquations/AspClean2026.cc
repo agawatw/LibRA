@@ -123,12 +123,14 @@ void AspClean2026::setInitScaleXfrs(const Float /*width*/)
   itsNInitScales = 1;
   itsNscales = 1;
 
-  itsInitScales.resize(1, false);
+  // do not initialize the following for asp2026 b/c
+  // it causes seg fault as well as increasing memory usage
+  /*itsInitScales.resize(1, false);
   itsInitScaleXfrs.resize(1, false);
   itsInitScales[0] = Matrix<Float>(psfShape_p);
-  makeInitScaleImage(itsInitScales[0], 0.0f);
+  makeInitScaleImage(itsInitScales[0], 0.0f);*/
   fft = FFTServer<Float, Complex>(psfShape_p);
-  fft.fft0(itsInitScaleXfrs[0], itsInitScales[0]);
+  //fft.fft0(itsInitScaleXfrs[0], itsInitScales[0]);
 }
 
 Bool AspClean2026::setInitScaleMasks(
@@ -392,7 +394,9 @@ void AspClean2026::optimizeComponent()
   scale[1] = 1.0;
 
   minlbfgsstate state;
-  minlbfgscreate(5, x, state);
+  //minlbfgscreate(2, 2, x, state);
+  minlbfgscreatef(
+      2, 2, x, 1.0e-4, state);
   minlbfgssetcond(state, 1.0e-5, 1.0e-6, 1.0e-5, 25);
   minlbfgssetscale(state, scale);
 
