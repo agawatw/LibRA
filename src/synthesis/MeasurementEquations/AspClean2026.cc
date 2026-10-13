@@ -93,20 +93,18 @@ void runAspClean2026LBFGS(
 
 struct AspClean2026LBFGSContext
 {
-  const AspClean2026* cleaner;
+  AspClean2026* cleaner;
 };
 
 constexpr Float fracMin = 0.60f;
 constexpr Float fracMax = 0.99f;
 constexpr Float minEpsFrac = 1.0e-6f;
-constexpr Float maxTransform = 20.0f;
+constexpr double maxTransform = 20.0;
 
 } // namespace
 
 AspClean2026::AspClean2026()
-    : //itsResidualComponentSupport(2, 1),
-      itsSwitchedToHogbom(false),
-      itsFrac(0.8f),
+    : itsFrac(0.8f),
       itsEpsFrac(0.1f),
       itsPeakValue(0.0f),
       itsPeakSign(1.0f)
@@ -124,12 +122,11 @@ void AspClean2026::setInitScaleXfrs(const Float /*width*/)
   itsNInitScales = 1;
   itsNscales = 1;
 
-  itsInitScales.resize(1, false);
-  itsInitScaleXfrs.resize(1, false);
-  itsInitScales[0] = Matrix<Float>(psfShape_p);
-  makeInitScaleImage(itsInitScales[0], 0.0f);
+  // The 2026 path constructs its component directly from the residual and
+  // never consumes the legacy initial-scale image or its transform.  Do not
+  // allocate and FFT an image-sized zero matrix here: on large Hummbee images
+  // those unused allocations can exhaust memory during initialization.
   fft = FFTServer<Float, Complex>(psfShape_p);
-  fft.fft0(itsInitScaleXfrs[0], itsInitScales[0]);
 }
 
 Bool AspClean2026::setInitScaleMasks(
@@ -255,7 +252,7 @@ Matrix<Float> AspClean2026::makeTanhComponent(
 }
 
 Matrix<Float> AspClean2026::convolveComponent(
-    const Matrix<Float>& component) const
+    const Matrix<Float>& component)
 {
   Matrix<Complex> componentXfr;
   fft.fft0(componentXfr, component);
@@ -289,7 +286,7 @@ Float AspClean2026::objective(
     const Float frac,
     const Float epsFrac,
     Matrix<Float>* component,
-    Matrix<Float>* convolved) const
+    Matrix<Float>* convolved)
 {
   const Matrix<Float> localComponent =
       makeTanhComponent(frac, epsFrac);
@@ -355,7 +352,7 @@ void AspClean2026::lbfgsObjective(
     void* ptr)
 {
   auto* context = static_cast<AspClean2026LBFGSContext*>(ptr);
-  const AspClean2026* cleaner = context->cleaner;
+  AspClean2026* cleaner = context->cleaner;
 
   const Float frac = transformedFrac(x[0]);
   const Float epsFrac = transformedEpsFrac(x[1]);
@@ -378,22 +375,30 @@ void AspClean2026::optimizeComponent()
     return;
   }
 
-  // Reuse the existing lbfgs in the Asp base class. The Asp base 
+  // Reuse the existing lbfgs in the Asp base class. The Asp base
   // optimizes the Gaussian amplitude and scale. The AspClean2026 uses
   // the same optimizer through a new callback.
+  constexpr int parameterCount = 2;
+  constexpr int historySize = 2;
+  constexpr double derivativeStep = 1.0e-4;
+
   real_1d_array x;
-  x.setlength(2);
+  x.setlength(parameterCount);
   x[0] = inverseFrac(std::clamp(itsFrac, fracMin + 1.0e-5f,
                                 fracMax - 1.0e-5f));
   x[1] = inverseEpsFrac(std::max(itsEpsFrac, minEpsFrac));
 
   real_1d_array scale;
-  scale.setlength(2);
+  scale.setlength(parameterCount);
   scale[0] = 1.0;
   scale[1] = 1.0;
 
   minlbfgsstate state;
-  minlbfgscreate(5, x, state);
+  // The callback supplies only the objective value, not an analytic
+  // gradient, so create the finite-difference variant of the optimizer.
+  // ALGLIB also requires the history size M not to exceed dimension N.
+  minlbfgscreatef(
+      parameterCount, historySize, x, derivativeStep, state);
   minlbfgssetcond(state, 1.0e-5, 1.0e-6, 1.0e-5, 25);
   minlbfgssetscale(state, scale);
 
@@ -456,5 +461,19 @@ IPosition AspClean2026::componentSupport(
   return imageShape;
 }
 
-} // namespace casa
+Bool AspClean2026::useLegacyStrengthLogic() const
+{
+  return false;
+}
 
+Bool AspClean2026::useHogbomFallback() const
+{
+  return false;
+}
+
+Bool AspClean2026::useLegacyScaleImagePath() const
+{
+  return false;
+}
+
+} // namespace casa
