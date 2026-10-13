@@ -27,6 +27,7 @@
 #include <tests/test_utils.h>
 #include <tests/test_utils.h>
 #include <libracore/LibracoreUtils.h>
+#include <cmath>
 using namespace std;
 using namespace std::filesystem;
 using namespace libracore::utils;
@@ -302,6 +303,63 @@ TEST(HummbeeTest,  AppLevelMfsAsp) {
 
   libracore::utils::remove_directory(testDir);
 
+}
+
+TEST(HummbeeTest, AppLevelMfsAsp2026) {
+
+  // Use the same MFS inputs as AppLevelMfsAsp so this test isolates
+  // selection and execution of the AspClean2026 minor-cycle algorithm.
+  string testName = ::testing::UnitTest::GetInstance()->current_test_info()->name();
+  path testDir = current_path() / testName;
+  std::filesystem::create_directory(testDir);
+
+  copy(goldDir/"unittest_hummbee_mfs_revE.psf",
+       testDir/"unittest_hummbee_mfs_revE.psf", copy_options::recursive);
+  copy(goldDir/"unittest_hummbee_mfs_revE.residual",
+       testDir/"unittest_hummbee_mfs_revE.residual", copy_options::recursive);
+  copy(goldDir/"unittest_hummbee_mfs_revE.sumwt",
+       testDir/"unittest_hummbee_mfs_revE.sumwt", copy_options::recursive);
+  copy(goldDir/"unittest_hummbee_mfs_revE.weight",
+       testDir/"unittest_hummbee_mfs_revE.weight", copy_options::recursive);
+
+  current_path(testDir);
+
+  string imageName = "unittest_hummbee_mfs_revE";
+  string modelImageName = "unittest_hummbee_mfs_revE.image";
+  string deconvolver = "asp2026", specmode = "mfs";
+  vector<float> scales;
+  float largestscale = -1;
+  float fusedthreshold = 0.007;
+  int nterms = 1;
+  float gain = 0.2;
+  float threshold = 2.6e-07;
+  float nsigma = 0.0;
+  int cycleniter = 3;
+  float cyclefactor = 1.0;
+  vector<string> mask{
+      "box[[890pix,1478pix],[1908pix,2131pix]]",
+      "box[[1794pix,1828pix],[2225pix,2232pix]]",
+      "box[[2077pix,1989pix],[3270pix,2616pix]]"};
+  bool doPBCorr = false;
+  string imagingMode = "deconvolve";
+
+  const float peakRes = Hummbee(
+      imageName, modelImageName, deconvolver, scales, largestscale,
+      fusedthreshold, nterms, gain, threshold, nsigma, cycleniter,
+      cyclefactor, mask, specmode, doPBCorr, imagingMode);
+
+  EXPECT_TRUE(std::isfinite(peakRes));
+  EXPECT_GE(peakRes, 0.0f);
+
+  const path modelPath("unittest_hummbee_mfs_revE.model");
+  ASSERT_TRUE(exists(modelPath));
+  PagedImage<Float> modelimage("unittest_hummbee_mfs_revE.model");
+  Array<Float> modelValues;
+  modelimage.get(modelValues, true);
+  EXPECT_GT(sum(abs(modelValues)), 0.0f);
+
+  current_path(testDir.parent_path());
+  libracore::utils::remove_directory(testDir);
 }
 
 
