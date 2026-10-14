@@ -43,12 +43,14 @@ public:
   AspClean2026();
   ~AspClean2026() override;
 
-protected:
+  // Public setup hooks used by the synthesis deconvolution adapter.
   void setInitScaleXfrs(const casacore::Float width) override;
 
   casacore::Bool setInitScaleMasks(
       const casacore::Matrix<casacore::Float>& mask,
-      const casacore::Float& maskThreshold) override;
+      const casacore::Float& maskThreshold = 0.99f) override;
+
+protected:
 
   std::vector<casacore::Float> getActiveSetAspen(
       const float peakres) override;
@@ -79,8 +81,6 @@ protected:
   casacore::Bool useLegacyScaleImagePath() const override;
 
 private:
-  using AspMatrixCleaner::itsSwitchedToHogbom;
-  
   casacore::Bool insideCleanWindow(casacore::Int i, casacore::Int j) const;
 
   void extractResidualPeak();
@@ -90,17 +90,18 @@ private:
       casacore::Float epsFrac) const;
 
   casacore::Matrix<casacore::Float> convolveComponent(
-      const casacore::Matrix<casacore::Float>& component) const;
+      const casacore::Matrix<casacore::Float>& component);
 
-  casacore::Float objective(
+  double objectiveAndGradient(
       casacore::Float frac,
       casacore::Float epsFrac,
-      casacore::Matrix<casacore::Float>* component = nullptr,
-      casacore::Matrix<casacore::Float>* convolved = nullptr) const;
+      double& fracGradient,
+      double& epsFracGradient);
 
   static void lbfgsObjective(
       const alglib::real_1d_array& x,
       double& func,
+      alglib::real_1d_array& gradient,
       void* ptr);
 
   static casacore::Float transformedFrac(double x);
@@ -121,4 +122,3 @@ private:
 } // namespace casa
 
 #endif
-
