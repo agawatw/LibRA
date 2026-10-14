@@ -91,15 +91,16 @@ private:
   casacore::Matrix<casacore::Float> convolveComponent(
       const casacore::Matrix<casacore::Float>& component);
 
-  casacore::Float objective(
+  double objectiveAndGradient(
       casacore::Float frac,
       casacore::Float epsFrac,
-      casacore::Matrix<casacore::Float>* component = nullptr,
-      casacore::Matrix<casacore::Float>* convolved = nullptr);
+      double& fracGradient,
+      double& epsFracGradient);
 
   static void lbfgsObjective(
       const alglib::real_1d_array& x,
       double& func,
+      alglib::real_1d_array& gradient,
       void* ptr);
 
   static casacore::Float transformedFrac(double x);

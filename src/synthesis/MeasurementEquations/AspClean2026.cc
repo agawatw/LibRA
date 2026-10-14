@@ -286,24 +286,27 @@ Matrix<Float> AspClean2026::convolveComponent(
 }
 
 
-Float AspClean2026::objective(
+double AspClean2026::objectiveAndGradient(
     const Float frac,
     const Float epsFrac,
-    Matrix<Float>* component,
-    Matrix<Float>* convolved) 
+    double& fracGradient,
+    double& epsFracGradient) 
 {
   const Matrix<Float> localComponent =
       makeTanhComponent(frac, epsFrac);
   const Matrix<Float> localConvolved =
       convolveComponent(localComponent);
 
-  if (component != nullptr)
+  /*if (component != nullptr)
     *component = localComponent;
   if (convolved != nullptr)
     *convolved = localConvolved;
 
   Float chi2 = 0.0f;
-  const IPosition shape = itsDirty->shape();
+  const IPosition shape = itsDirty->shape();*/
+  double chi2 = 0.0;
+  fracGradient = 0.0;
+  epsFracGradient = 0.0;
 
   // Eq. 28: evaluate the objective only over the clean window.
   for (Int j = blcDirty(1); j <= trcDirty(1); ++j) 
@@ -313,12 +316,81 @@ Float AspClean2026::objective(
       if (!insideCleanWindow(i, j))
         continue;
 
-      const Float difference =
-          (*itsDirty)(i, j) - localConvolved(i, j);
+      //const Float difference =
+      //    (*itsDirty)(i, j) - localConvolved(i, j);
+      const double difference =
+          double((*itsDirty)(i, j)) - double(localConvolved(i, j));
 
       chi2 += difference * difference;
     }
   }
+
+  // Differentiate the smooth part of the thresholded component. Pixels
+  // exactly on the moving threshold are non-differentiable and have measure
+  // zero, so use the derivative of the active branch.
+  Matrix<Float> componentDerivative(itsDirty->shape(), 0.0f);
+  const Float peakAmplitude = std::abs(itsPeakValue);
+  const Float threshold = frac * peakAmplitude;
+  const Float epsilon = std::max(epsFrac * peakAmplitude, 1.0e-12f);
+
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+  {
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
+    {
+      if (!insideCleanWindow(i, j))
+        continue;
+
+      const Float residual = (*itsDirty)(i, j);
+      const Float signedResidual = itsPeakSign * residual;
+      if (signedResidual >= threshold)
+      {
+        const Float z = (signedResidual - threshold) / epsilon;
+        const Float tanhZ = std::tanh(z);
+        const Float sechSquared = 1.0f - tanhZ * tanhZ;
+        componentDerivative(i, j) =
+            -residual * sechSquared / epsFrac;
+      }
+    }
+  }
+
+  Matrix<Float> convolvedDerivative =
+      convolveComponent(componentDerivative);
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
+      if (insideCleanWindow(i, j))
+        fracGradient += -2.0 *
+            (double((*itsDirty)(i, j)) - double(localConvolved(i, j))) *
+            double(convolvedDerivative(i, j));
+
+  componentDerivative = 0.0f;
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+  {
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
+    {
+      if (!insideCleanWindow(i, j))
+        continue;
+
+      const Float residual = (*itsDirty)(i, j);
+      const Float signedResidual = itsPeakSign * residual;
+      if (signedResidual >= threshold)
+      {
+        const Float z = (signedResidual - threshold) / epsilon;
+        const Float tanhZ = std::tanh(z);
+        const Float sechSquared = 1.0f - tanhZ * tanhZ;
+        componentDerivative(i, j) =
+            -residual * sechSquared * z / epsFrac;
+      }
+    }
+  }
+
+  convolvedDerivative = convolveComponent(componentDerivative);
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
+      if (insideCleanWindow(i, j))
+        epsFracGradient += -2.0 *
+            (double((*itsDirty)(i, j)) - double(localConvolved(i, j))) *
+            double(convolvedDerivative(i, j));
+
 
   return chi2;
 }
@@ -353,6 +425,7 @@ double AspClean2026::inverseEpsFrac(const Float epsFrac)
 void AspClean2026::lbfgsObjective(
     const alglib::real_1d_array& x,
     double& func,
+    alglib::real_1d_array& gradient,
     void* ptr)
 {
   auto* context = static_cast<AspClean2026LBFGSContext*>(ptr);
@@ -361,7 +434,17 @@ void AspClean2026::lbfgsObjective(
   const Float frac = transformedFrac(x[0]);
   const Float epsFrac = transformedEpsFrac(x[1]);
 
-  func = double(cleaner->objective(frac, epsFrac));
+  //func = double(cleaner->objective(frac, epsFrac));
+  double fracGradient = 0.0;
+  double epsFracGradient = 0.0;
+  func = cleaner->objectiveAndGradient(
+      frac, epsFrac, fracGradient, epsFracGradient);
+
+  const double fracRange = double(fracMax - fracMin);
+  gradient[0] = std::abs(x[0]) >= maxTransform ? 0.0 : fracGradient *
+      (double(frac - fracMin) * double(fracMax - frac) / fracRange);
+  gradient[1] = std::abs(x[1]) >= maxTransform
+      ? 0.0 : epsFracGradient * double(epsFrac);
 }
 
 void AspClean2026::optimizeComponent()
@@ -395,8 +478,8 @@ void AspClean2026::optimizeComponent()
 
   minlbfgsstate state;
   //minlbfgscreate(2, 2, x, state);
-  minlbfgscreatef(
-      2, 2, x, 1.0e-4, state);
+  minlbfgscreate(
+      2, 2, x, state);
   minlbfgssetcond(state, 1.0e-5, 1.0e-6, 1.0e-5, 25);
   minlbfgssetscale(state, scale);
 
