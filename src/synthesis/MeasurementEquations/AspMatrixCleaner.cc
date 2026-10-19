@@ -195,8 +195,16 @@ Int AspMatrixCleaner::aspclean(Matrix<Float>& model,
   Matrix<Float> itsScale(psfShape_p);
   Matrix<Complex> itsScaleXfr;
 
-  // Define a subregion so that the selected component is centered.
-  IPosition support(componentSupport(model.shape()));
+  // Keep the established Asp support calculation on the legacy path.  New
+  // component representations may supply different support through the hook.
+  IPosition support(model.shape());
+  if (useLegacyScaleImagePath())
+  {
+    support(0) = max(Int(itsInitScaleSizes[itsNInitScales-1] + 0.5), support(0));
+    support(1) = max(Int(itsInitScaleSizes[itsNInitScales-1] + 0.5), support(1));
+  }
+  else
+    support = componentSupport(model.shape());
   IPosition inc(model.shape().nelements(), 1);
 
   // get init peakres
@@ -261,7 +269,8 @@ Int AspMatrixCleaner::aspclean(Matrix<Float>& model,
     // make single optimized scale image
     os << LogIO::NORMAL3 << "Making optimized scale " << itsOptimumScaleSize << " at location " << itsPositionOptimum << LogIO::POST;
 
-    optimizeComponent();
+    if (!useLegacyScaleImagePath())
+      optimizeComponent();
 
     // Legacy Asp-CLEAN represents a component as a scalar strength times a
     // scale image, so the base class normally materializes/FFTs that image
@@ -500,7 +509,50 @@ Int AspMatrixCleaner::aspclean(Matrix<Float>& model,
         break;
     }
 
-    updateModelAndResidual(model, support, itsScale, itsScaleXfr);
+    if (useLegacyScaleImagePath())
+    {
+      // Preserve the original Asp update path verbatim.  In particular, keep
+      // the casacore expression construction and slice assignment order used
+      // before AspClean2026 introduced an overridable update operation.
+      IPosition blc(itsPositionOptimum - support/2);
+      IPosition trc(itsPositionOptimum + support/2 - 1);
+      LCBox::verify(blc, trc, inc, model.shape());
+      IPosition blcPsf(blc);
+      IPosition trcPsf(trc);
+
+      Matrix<Float> modelSub = model(blc, trc);
+      Float scaleFactor = itsGain * itsStrengthOptimum;
+      Matrix<Float> scaleSub = itsScale(blcPsf, trcPsf);
+      modelSub += scaleFactor * scaleSub;
+
+      Matrix<Complex> cWork;
+      cWork = ((*itsXfr) * itsScaleXfr);
+      Matrix<Float> itsPsfConvScale = Matrix<Float>(psfShape_p);
+      fft.fft0(itsPsfConvScale, cWork, false);
+      fft.flip(itsPsfConvScale, false, false);
+
+      IPosition nullnull(2, 0);
+      Matrix<Float> shift(psfShape_p);
+      shift.assign_conforming(itsPsfConvScale);
+      if (itsdimensionsareeven)
+      {
+        Matrix<Float> sub = itsPsfConvScale(nullnull + 1, support - 1);
+        sub.assign_conforming(shift(nullnull, support - 2));
+      }
+      else
+      {
+        Matrix<Float> sub = itsPsfConvScale(nullnull + 2, support - 1);
+        sub.assign_conforming(shift(nullnull, support - 3));
+      }
+
+      Matrix<Float> psfSub = itsPsfConvScale(blcPsf, trcPsf);
+      Matrix<Float> dirtySub = (*itsDirty)(blc, trc);
+      os << LogIO::NORMAL3 << "itsStrengthOptimum "
+         << itsStrengthOptimum << LogIO::POST;
+      dirtySub -= scaleFactor * psfSub;
+    }
+    else
+      updateModelAndResidual(model, support, itsScale, itsScaleXfr);
 
     // update peakres
     itsPrevPeakResidual = itsPeakResidual;

@@ -93,20 +93,18 @@ void runAspClean2026LBFGS(
 
 struct AspClean2026LBFGSContext
 {
-  const AspClean2026* cleaner;
+  AspClean2026* cleaner;
 };
 
 constexpr Float fracMin = 0.60f;
 constexpr Float fracMax = 0.99f;
 constexpr Float minEpsFrac = 1.0e-6f;
-constexpr Float maxTransform = 20.0f;
+constexpr double maxTransform = 20.0;
 
 } // namespace
 
 AspClean2026::AspClean2026()
-    : //itsResidualComponentSupport(2, 1),
-      itsSwitchedToHogbom(false),
-      itsFrac(0.8f),
+    : itsFrac(0.8f),
       itsEpsFrac(0.1f),
       itsPeakValue(0.0f),
       itsPeakSign(1.0f)
@@ -124,12 +122,11 @@ void AspClean2026::setInitScaleXfrs(const Float /*width*/)
   itsNInitScales = 1;
   itsNscales = 1;
 
-  itsInitScales.resize(1, false);
-  itsInitScaleXfrs.resize(1, false);
-  itsInitScales[0] = Matrix<Float>(psfShape_p);
-  makeInitScaleImage(itsInitScales[0], 0.0f);
+  // The 2026 path constructs its component directly from the residual and
+  // never consumes the legacy initial-scale image or its transform.  Do not
+  // allocate and FFT an image-sized zero matrix here: on large Hummbee images
+  // those unused allocations can exhaust memory during initialization.
   fft = FFTServer<Float, Complex>(psfShape_p);
-  fft.fft0(itsInitScaleXfrs[0], itsInitScales[0]);
 }
 
 Bool AspClean2026::setInitScaleMasks(
@@ -188,9 +185,9 @@ void AspClean2026::extractResidualPeak()
   Float peak = 0.0f;
   IPosition peakPosition(shape.nelements(), 0);
 
-  for (Int j = blcDirty(1); j <= trcDirty(1); ++j) 
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
   {
-    for (Int i = blcDirty(0); i <= trcDirty(0); ++i) 
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
     {
       if (!insideCleanWindow(i, j))
         continue;
@@ -232,10 +229,10 @@ Matrix<Float> AspClean2026::makeTanhComponent(
       std::max(epsFrac * peakAmplitude, 1.0e-12f);
 
   // Eq. (20) and (27): the component is constructed from residual pixels
-  // inside the clean window using the signed peak and the adaptive threshold.  
-  for (Int j = blcDirty(1); j <= trcDirty(1); ++j) 
+  // inside the clean window using the signed peak and the adaptive threshold.
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
   {
-    for (Int i = blcDirty(0); i <= trcDirty(0); ++i) 
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
     {
       if (!insideCleanWindow(i, j))
         continue;
@@ -255,7 +252,7 @@ Matrix<Float> AspClean2026::makeTanhComponent(
 }
 
 Matrix<Float> AspClean2026::convolveComponent(
-    const Matrix<Float>& component) const
+    const Matrix<Float>& component)
 {
   Matrix<Complex> componentXfr;
   fft.fft0(componentXfr, component);
@@ -266,58 +263,124 @@ Matrix<Float> AspClean2026::convolveComponent(
   fft.fft0(convolved, work, false);
   fft.flip(convolved, false, false);
 
-  // genie do I need shift correction like the Asp base class?
-  /*const Int nx = convolved.shape()(0);
-  const Int ny = convolved.shape()(1);
+  // Match the pixel-origin correction used by the legacy Asp update. Without
+  // this shift the minor cycle subtracts a PSF response displaced from the
+  // component written into the model. A following major cycle then computes
+  // the true response from that model and restores the apparent peak.
   IPosition nullnull(2, 0);
-  IPosition sup(2, nx, ny);
-  Matrix<Float> shifted(convolved.shape());
-
-  if (itsdimensionsareeven) {
-      Matrix<Float> sub = convolved(nullnull + 1, sup - 1);
-      sub.assign_conforming(shifted(nullnull, sup - 2));
-  } else {
-      Matrix<Float> sub = convolved(nullnull + 2, sup - 1);
-      sub.assign_conforming(shifted(nullnull, sup - 3));
-  }*/
+  const IPosition support(convolved.shape());
+  Matrix<Float> unshifted(convolved.shape());
+  unshifted.assign_conforming(convolved);
+  if (itsdimensionsareeven)
+  {
+    Matrix<Float> destination = convolved(nullnull + 1, support - 1);
+    destination.assign_conforming(unshifted(nullnull, support - 2));
+  }
+  else
+  {
+    Matrix<Float> destination = convolved(nullnull + 2, support - 1);
+    destination.assign_conforming(unshifted(nullnull, support - 3));
+  }
 
   return convolved;
 }
 
 
-Float AspClean2026::objective(
+double AspClean2026::objectiveAndGradient(
     const Float frac,
     const Float epsFrac,
-    Matrix<Float>* component,
-    Matrix<Float>* convolved) const
+    double& fracGradient,
+    double& epsFracGradient)
 {
   const Matrix<Float> localComponent =
       makeTanhComponent(frac, epsFrac);
   const Matrix<Float> localConvolved =
       convolveComponent(localComponent);
 
-  if (component != nullptr)
-    *component = localComponent;
-  if (convolved != nullptr)
-    *convolved = localConvolved;
-
-  Float chi2 = 0.0f;
-  const IPosition shape = itsDirty->shape();
+  double chi2 = 0.0;
+  fracGradient = 0.0;
+  epsFracGradient = 0.0;
 
   // Eq. 28: evaluate the objective only over the clean window.
-  for (Int j = blcDirty(1); j <= trcDirty(1); ++j) 
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
   {
-    for (Int i = blcDirty(0); i <= trcDirty(0); ++i) 
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
     {
       if (!insideCleanWindow(i, j))
         continue;
 
-      const Float difference =
-          (*itsDirty)(i, j) - localConvolved(i, j);
+      const double difference =
+          double((*itsDirty)(i, j)) - double(localConvolved(i, j));
 
       chi2 += difference * difference;
     }
   }
+
+  // Differentiate the smooth part of the thresholded component. Pixels
+  // exactly on the moving threshold are non-differentiable and have measure
+  // zero, so use the derivative of the active branch.
+  Matrix<Float> componentDerivative(itsDirty->shape(), 0.0f);
+  const Float peakAmplitude = std::abs(itsPeakValue);
+  const Float threshold = frac * peakAmplitude;
+  const Float epsilon = std::max(epsFrac * peakAmplitude, 1.0e-12f);
+
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+  {
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
+    {
+      if (!insideCleanWindow(i, j))
+        continue;
+
+      const Float residual = (*itsDirty)(i, j);
+      const Float signedResidual = itsPeakSign * residual;
+      if (signedResidual >= threshold)
+      {
+        const Float z = (signedResidual - threshold) / epsilon;
+        const Float tanhZ = std::tanh(z);
+        const Float sechSquared = 1.0f - tanhZ * tanhZ;
+        componentDerivative(i, j) =
+            -residual * sechSquared / epsFrac;
+      }
+    }
+  }
+
+  Matrix<Float> convolvedDerivative =
+      convolveComponent(componentDerivative);
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
+      if (insideCleanWindow(i, j))
+        fracGradient += -2.0 *
+            (double((*itsDirty)(i, j)) - double(localConvolved(i, j))) *
+            double(convolvedDerivative(i, j));
+
+  componentDerivative = 0.0f;
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+  {
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
+    {
+      if (!insideCleanWindow(i, j))
+        continue;
+
+      const Float residual = (*itsDirty)(i, j);
+      const Float signedResidual = itsPeakSign * residual;
+      if (signedResidual >= threshold)
+      {
+        const Float z = (signedResidual - threshold) / epsilon;
+        const Float tanhZ = std::tanh(z);
+        const Float sechSquared = 1.0f - tanhZ * tanhZ;
+        componentDerivative(i, j) =
+            -residual * sechSquared * z / epsFrac;
+      }
+    }
+  }
+
+  convolvedDerivative = convolveComponent(componentDerivative);
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
+      if (insideCleanWindow(i, j))
+        epsFracGradient += -2.0 *
+            (double((*itsDirty)(i, j)) - double(localConvolved(i, j))) *
+            double(convolvedDerivative(i, j));
 
   return chi2;
 }
@@ -352,15 +415,25 @@ double AspClean2026::inverseEpsFrac(const Float epsFrac)
 void AspClean2026::lbfgsObjective(
     const alglib::real_1d_array& x,
     double& func,
+    alglib::real_1d_array& gradient,
     void* ptr)
 {
   auto* context = static_cast<AspClean2026LBFGSContext*>(ptr);
-  const AspClean2026* cleaner = context->cleaner;
+  AspClean2026* cleaner = context->cleaner;
 
   const Float frac = transformedFrac(x[0]);
   const Float epsFrac = transformedEpsFrac(x[1]);
 
-  func = double(cleaner->objective(frac, epsFrac));
+  double fracGradient = 0.0;
+  double epsFracGradient = 0.0;
+  func = cleaner->objectiveAndGradient(
+      frac, epsFrac, fracGradient, epsFracGradient);
+
+  const double fracRange = double(fracMax - fracMin);
+  gradient[0] = std::abs(x[0]) >= maxTransform ? 0.0 : fracGradient *
+      (double(frac - fracMin) * double(fracMax - frac) / fracRange);
+  gradient[1] = std::abs(x[1]) >= maxTransform
+      ? 0.0 : epsFracGradient * double(epsFrac);
 }
 
 void AspClean2026::optimizeComponent()
@@ -378,22 +451,27 @@ void AspClean2026::optimizeComponent()
     return;
   }
 
-  // Reuse the existing lbfgs in the Asp base class. The Asp base 
+  // Reuse the existing lbfgs in the Asp base class. The Asp base
   // optimizes the Gaussian amplitude and scale. The AspClean2026 uses
   // the same optimizer through a new callback.
+  constexpr int parameterCount = 2;
+  constexpr int historySize = 2;
+
   real_1d_array x;
-  x.setlength(2);
+  x.setlength(parameterCount);
   x[0] = inverseFrac(std::clamp(itsFrac, fracMin + 1.0e-5f,
                                 fracMax - 1.0e-5f));
   x[1] = inverseEpsFrac(std::max(itsEpsFrac, minEpsFrac));
 
   real_1d_array scale;
-  scale.setlength(2);
+  scale.setlength(parameterCount);
   scale[0] = 1.0;
   scale[1] = 1.0;
 
   minlbfgsstate state;
-  minlbfgscreate(5, x, state);
+  // The callback supplies the objective and its analytic gradient. ALGLIB
+  // requires the history size M not to exceed the problem dimension N.
+  minlbfgscreate(parameterCount, historySize, x, state);
   minlbfgssetcond(state, 1.0e-5, 1.0e-6, 1.0e-5, 25);
   minlbfgssetscale(state, scale);
 
@@ -424,7 +502,7 @@ void AspClean2026::updateModelAndResidual(
   if (itsPeakValue == 0.0f)
     return;
 
-  // Eq. 30 and 31: the optimized component already contains 
+  // Eq. 30 and 31: the optimized component already contains
   // amplitude, so only the gain is applied here.
   model += itsGain * itsResidualComponent;
   (*itsDirty) -= itsGain * itsConvolvedComponent;
@@ -456,5 +534,19 @@ IPosition AspClean2026::componentSupport(
   return imageShape;
 }
 
-} // namespace casa
+Bool AspClean2026::useLegacyStrengthLogic() const
+{
+  return false;
+}
 
+Bool AspClean2026::useHogbomFallback() const
+{
+  return false;
+}
+
+Bool AspClean2026::useLegacyScaleImagePath() const
+{
+  return false;
+}
+
+} // namespace casa

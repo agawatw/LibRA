@@ -145,6 +145,11 @@ namespace casa { //# NAMESPACE CASA - BEGIN
 	  {
 	    itsDeconvolver.reset(new SDAlgorithmMEM( "entropy" ));
 	  }
+	else if (decpars.algorithm==String("asp2026"))
+	  {
+	    const bool isSingle = decpars.specmode == String("mfs");
+	    itsDeconvolver.reset(new SDAlgorithmAspClean2026(isSingle));
+	  }
 	else if (decpars.algorithm==String("asp"))
 	  {
       bool isSingle = false;
