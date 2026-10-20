@@ -43,12 +43,14 @@ public:
   AspClean2026();
   ~AspClean2026() override;
 
-protected:
+  // Public setup hooks used by the synthesis deconvolution adapter.
   void setInitScaleXfrs(const casacore::Float width) override;
 
   casacore::Bool setInitScaleMasks(
       const casacore::Matrix<casacore::Float>& mask,
-      const casacore::Float& maskThreshold) override;
+      const casacore::Float& maskThreshold = 0.99f) override;
+
+protected:
 
   std::vector<casacore::Float> getActiveSetAspen(
       const float peakres) override;
@@ -79,38 +81,41 @@ protected:
   casacore::Bool useLegacyScaleImagePath() const override;
 
 private:
-  using AspMatrixCleaner::itsSwitchedToHogbom;
-  
   casacore::Bool insideCleanWindow(casacore::Int i, casacore::Int j) const;
 
   void extractResidualPeak();
 
-  casacore::Matrix<casacore::Float> makeTanhComponent(
+  void makeTanhComponent(
+      casacore::Matrix<casacore::Float>& component,
       casacore::Float frac,
       casacore::Float epsFrac) const;
 
-  casacore::Matrix<casacore::Float> convolveComponent(
-      const casacore::Matrix<casacore::Float>& component) const;
+  void convolveComponent(
+      const casacore::Matrix<casacore::Float>& component,
+      casacore::Matrix<casacore::Float>& convolved);
 
-  casacore::Float objective(
+  double objectiveAndGradient(
       casacore::Float frac,
       casacore::Float epsFrac,
-      casacore::Matrix<casacore::Float>* component = nullptr,
-      casacore::Matrix<casacore::Float>* convolved = nullptr) const;
+      double& fracGradient,
+      double& epsFracGradient);
 
   static void lbfgsObjective(
       const alglib::real_1d_array& x,
       double& func,
+      alglib::real_1d_array& gradient,
       void* ptr);
-
-  static casacore::Float transformedFrac(double x);
-  static casacore::Float transformedEpsFrac(double x);
-  static double inverseFrac(casacore::Float frac);
-  static double inverseEpsFrac(casacore::Float epsFrac);
 
   //casacore::IPosition itsResidualComponentSupport;
   casacore::Matrix<casacore::Float> itsResidualComponent;
   casacore::Matrix<casacore::Float> itsConvolvedComponent;
+  casacore::Matrix<casacore::Float> itsTrialComponent;
+  casacore::Matrix<casacore::Float> itsTrialConvolved;
+  casacore::Matrix<casacore::Float> itsComponentDerivative;
+  casacore::Matrix<casacore::Float> itsConvolvedDerivative;
+  casacore::Matrix<casacore::Float> itsUnshiftedConvolution;
+  casacore::Matrix<casacore::Complex> itsComponentXfr;
+  casacore::Matrix<casacore::Complex> itsConvolutionWork;
 
   casacore::Float itsFrac;
   casacore::Float itsEpsFrac;
@@ -121,4 +126,3 @@ private:
 } // namespace casa
 
 #endif
-
