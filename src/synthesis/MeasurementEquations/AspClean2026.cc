@@ -64,6 +64,10 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <functional>
+#include <vector>
+#include <iostream>
+#include <iomanip>
 
 #include <synthesis/MeasurementEquations/AspClean2026.h>
 
@@ -79,24 +83,30 @@ namespace casa {
 
 namespace {
 
-template <typename Objective>
-void runAspClean2026LBFGS(
-    minlbfgsstate& state,
-    real_1d_array& x,
-    minlbfgsreport& rep,
-    Objective objective,
-    void* ptrParam)
-{
-  alglib::minlbfgsoptimize(state, objective, NULL, ptrParam);
-  minlbfgsresults(state, x, rep);
-}
-
-struct AspClean2026LBFGSContext
-{
-  AspClean2026* cleaner;
+// ALGLIB VJ interface: residual vector and analytic Jacobian.
+// The lambdas are constructed inside optimizeComponent(), so no header changes
+// or additional externally visible class members are required.
+struct Asp2026LMContext {
+  std::function<void(const real_1d_array&, real_1d_array&,
+                     real_2d_array*)> evaluate;
 };
 
-constexpr Float fracMin = 0.60f;
+void asp2026Residuals(const real_1d_array& x,
+                      real_1d_array& fi, void* ptr)
+{
+  static_cast<Asp2026LMContext*>(ptr)->evaluate(x, fi, nullptr);
+}
+
+void asp2026ResidualsJacobian(const real_1d_array& x,
+                              real_1d_array& fi,
+                              real_2d_array& jac, void* ptr)
+{
+  static_cast<Asp2026LMContext*>(ptr)->evaluate(x, fi, &jac);
+}
+
+struct AspClean2026LBFGSContext { AspClean2026* cleaner; };
+
+constexpr Float fracMin = 0.65f;
 constexpr Float fracMax = 0.99f;
 constexpr Float minEpsFrac = 1.0e-6f;
 constexpr double maxTransform = 20.0;
@@ -105,8 +115,8 @@ constexpr double maxTransform = 20.0;
 
 AspClean2026::AspClean2026()
     : //itsResidualComponentSupport(2, 1),
-      itsFrac(0.8f),
-      itsEpsFrac(0.1f),
+      itsFrac(0.65f),
+      itsEpsFrac(1.0f),
       itsPeakValue(0.0f),
       itsPeakSign(1.0f)
 {}
@@ -197,7 +207,8 @@ void AspClean2026::extractResidualPeak()
         continue;
 
       const Float value = (*itsDirty)(i, j);
-      if (std::abs(value) > std::abs(peak))
+      //if (std::abs(value) > std::abs(peak)) // mode=absolute
+      if (value > peak) // mode=positive
       {
         peak = value;
         peakPosition = IPosition(2, i, j);
@@ -230,7 +241,7 @@ Matrix<Float> AspClean2026::makeTanhComponent(
   const Float peakAmplitude = std::abs(itsPeakValue);
   const Float threshold = frac * peakAmplitude;
   const Float epsilon =
-      std::max(epsFrac * peakAmplitude, 1.0e-12f);
+      epsFrac * peakAmplitude + 1.0e-12f;
 
   // Eq. (20) and (27): the component is constructed from residual pixels
   // inside the clean window using the signed peak and the adaptive threshold.  
@@ -255,7 +266,7 @@ Matrix<Float> AspClean2026::makeTanhComponent(
   return component;
 }
 
-Matrix<Float> AspClean2026::convolveComponent(
+/*Matrix<Float> AspClean2026::convolveComponent(
     const Matrix<Float>& component)
 {
   Matrix<Complex> componentXfr;
@@ -280,10 +291,74 @@ Matrix<Float> AspClean2026::convolveComponent(
   } else {
       Matrix<Float> sub = convolved(nullnull + 2, sup - 1);
       sub.assign_conforming(shifted(nullnull, sup - 3));
-  }*/
+  }* /
+
+  return convolved;
+}*/
+
+
+Matrix<Float> AspClean2026::convolveComponent(
+    const Matrix<Float>& component)
+{
+  // Forward FFT of the component.
+  Matrix<Complex> componentXfr;
+  fft.fft0(componentXfr, component);
+
+  // Multiply by the PSF Fourier transform.
+  Matrix<Complex> work((*itsXfr) * componentXfr);
+
+  // Inverse FFT.
+  Matrix<Float> convolved(component.shape());
+  fft.fft0(convolved, work, false);
+  fft.flip(convolved, false, false);
+
+  // ---------------------------------------------------------
+  // Pixel-origin correction used by AspMatrixCleaner.cc
+  // (Hendrik's pixel-shifting fix).
+  //
+  // Even-sized image: shift by 1 pixel.
+  // Odd-sized image:  shift by 2 pixels.
+  //
+  // Use the actual matrix dimensions to determine parity.
+  // This avoids relying on itsdimensionsareeven being set
+  // in the legacy AspMatrixCleaner::optimizeComponent().
+  // ---------------------------------------------------------
+
+  const IPosition support = convolved.shape();
+  const IPosition nullnull(2, 0);
+
+  const Int nx = support[0];
+  const Int ny = support[1];
+
+  const Bool evenDimensions =
+      (nx % 2 == 0) && (ny % 2 == 0);
+
+  const Int offset = evenDimensions ? 1 : 2;
+
+  // Keep a copy of the original convolution.
+  Matrix<Float> shifted(support);
+  shifted.assign_conforming(convolved);
+
+  // Initialize the output so that uncovered boundary
+  // pixels do not retain the unshifted convolution.
+  convolved = 0.0f;
+
+  if (nx > offset && ny > offset)
+  {
+    const IPosition shiftOffset(2, offset, offset);
+
+    Matrix<Float> destination =
+        convolved(nullnull + shiftOffset, support - 1);
+
+    Matrix<Float> source =
+        shifted(nullnull, support - shiftOffset - 1);
+
+    destination.assign_conforming(source);
+  }
 
   return convolved;
 }
+
 
 
 double AspClean2026::objectiveAndGradient(
@@ -331,7 +406,7 @@ double AspClean2026::objectiveAndGradient(
   Matrix<Float> componentDerivative(itsDirty->shape(), 0.0f);
   const Float peakAmplitude = std::abs(itsPeakValue);
   const Float threshold = frac * peakAmplitude;
-  const Float epsilon = std::max(epsFrac * peakAmplitude, 1.0e-12f);
+  const Float epsilon = epsFrac * peakAmplitude + 1.0e-12f;
 
   for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
   {
@@ -447,7 +522,7 @@ void AspClean2026::lbfgsObjective(
       ? 0.0 : epsFracGradient * double(epsFrac);
 }
 
-void AspClean2026::optimizeComponent()
+/*void AspClean2026::optimizeComponent()
 {
   extractResidualPeak();
 
@@ -462,44 +537,564 @@ void AspClean2026::optimizeComponent()
     return;
   }
 
-  // Reuse the existing lbfgs in the Asp base class. The Asp base 
-  // optimizes the Gaussian amplitude and scale. The AspClean2026 uses
-  // the same optimizer through a new callback.
-  real_1d_array x;
-  x.setlength(2);
-  x[0] = inverseFrac(std::clamp(itsFrac, fracMin + 1.0e-5f,
-                                fracMax - 1.0e-5f));
-  x[1] = inverseEpsFrac(std::max(itsEpsFrac, minEpsFrac));
+  // Author: lmfit(method="least_squares") -> scipy.optimize.least_squares,
+  // using bounded TRF. ALGLIB minlm VJ is a bounded least-squares
+  // alternative, not an identical implementation of SciPy TRF.
+  // Supply analytic residual Jacobians to avoid finite-difference FFTs.
+  constexpr int parameterCount = 2;
+  real_1d_array x, lowerBounds, upperBounds, scale;
+  x.setlength(parameterCount);
+  lowerBounds.setlength(parameterCount);
+  upperBounds.setlength(parameterCount);
+  scale.setlength(parameterCount);
 
-  real_1d_array scale;
-  scale.setlength(2);
+  x[0] = std::clamp(itsFrac, fracMin, fracMax);
+  x[1] = std::max(itsEpsFrac, minEpsFrac);
+  lowerBounds[0] = fracMin;
+  upperBounds[0] = fracMax;
+  lowerBounds[1] = minEpsFrac;
+  upperBounds[1] = std::numeric_limits<double>::infinity();
   scale[0] = 1.0;
   scale[1] = 1.0;
 
-  minlbfgsstate state;
-  //minlbfgscreate(2, 2, x, state);
-  minlbfgscreate(
-      2, 2, x, state);
-  minlbfgssetcond(state, 1.0e-5, 1.0e-6, 1.0e-5, 25);
-  minlbfgssetscale(state, scale);
+  // The Python residual vector consists of pixels where window != 0.
+  // Store their coordinates once per minor-cycle iteration.
+  std::vector<IPosition> pixels;
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
+      if (insideCleanWindow(i, j))
+        pixels.emplace_back(2, i, j);
 
-  minlbfgsreport report;
-  AspClean2026LBFGSContext context{this};
+  if (pixels.empty()) return;
+  const ae_int_t m = static_cast<ae_int_t>(pixels.size());
 
-  runAspClean2026LBFGS(state, x, report, &AspClean2026::lbfgsObjective, &context);
+  std::size_t diagnosticEval = 0;
 
-  itsFrac = transformedFrac(x[0]);
-  itsEpsFrac = transformedEpsFrac(x[1]);
+  Asp2026LMContext context;
+  context.evaluate = [this, &pixels, &diagnosticEval](
+                         const real_1d_array& trial,
+                         real_1d_array& fi,
+                         real_2d_array* jac) {
+    const Float f = static_cast<Float>(trial[0]);
+    const Float ef = static_cast<Float>(trial[1]);
+    const Matrix<Float> trialComponent = makeTanhComponent(f, ef);
+    const Matrix<Float> trialConvolved = convolveComponent(trialComponent);
 
-  itsResidualComponent =
-      makeTanhComponent(itsFrac, itsEpsFrac);
-  itsConvolvedComponent =
-      convolveComponent(itsResidualComponent);
+    for (ae_int_t k = 0; k < static_cast<ae_int_t>(pixels.size()); ++k) {
+      const Int i = pixels[k][0], j = pixels[k][1];
+      fi[k] = double((*itsDirty)(i,j)) - double(trialConvolved(i,j));
+    }
+    if (!jac) return;
+
+    const Float peak = std::abs(itsPeakValue);
+    const Float threshold = f * peak;
+    // Python: eps_frac * abs(max_res) + 1e-12, not max(...,1e-12).
+    const Float epsilon = ef * peak + 1.0e-12f;
+
+    // Analytic derivative of the component wrt frac.
+    Matrix<Float> componentDerivative(itsDirty->shape(), 0.0f);
+    for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+      for (Int i = blcDirty(0); i <= trcDirty(0); ++i) {
+        if (!insideCleanWindow(i,j)) continue;
+        const Float r = (*itsDirty)(i,j);
+        const Float znum = itsPeakSign*r - threshold;
+        if (znum < 0.0f) continue;
+        const Float z = znum/epsilon;
+        const Float t = std::tanh(z);
+        const Float sech2 = 1.0f-t*t;
+        componentDerivative(i,j) = -r*sech2*peak/epsilon;
+      }
+    Matrix<Float> convolvedDerivative = convolveComponent(componentDerivative);
+    for (ae_int_t k = 0; k < static_cast<ae_int_t>(pixels.size()); ++k)
+      (*jac)[k][0] = -double(convolvedDerivative(pixels[k][0],pixels[k][1]));
+
+    // Analytic derivative wrt eps_frac.
+    componentDerivative = 0.0f;
+    for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+      for (Int i = blcDirty(0); i <= trcDirty(0); ++i) {
+        if (!insideCleanWindow(i,j)) continue;
+        const Float r = (*itsDirty)(i,j);
+        const Float znum = itsPeakSign*r - threshold;
+        if (znum < 0.0f) continue;
+        const Float z = znum/epsilon;
+        const Float t = std::tanh(z);
+        componentDerivative(i,j) = -r*(1.0f-t*t)*z*peak/epsilon;
+      }
+    convolvedDerivative = convolveComponent(componentDerivative);
+    for (ae_int_t k = 0; k < static_cast<ae_int_t>(pixels.size()); ++k)
+      (*jac)[k][1] = -double(convolvedDerivative(pixels[k][0],pixels[k][1]));
+  
+    // debug info: objective and gradient of the scalar least-squares
+    // objective F = sum(fi[k]^2).
+    //
+    // ALGLIB receives the residual vector fi and its Jacobian J.
+    // Therefore, grad(F) = 2 * J^T * fi.
+
+    /*double objective = 0.0;
+    double gradFrac = 0.0;
+    double gradEpsFrac = 0.0;
+
+    for (ae_int_t k = 0;
+         k < static_cast<ae_int_t>(pixels.size()); ++k)
+    {
+      const double residual = fi[k];
+
+      objective += residual * residual;
+      gradFrac += 2.0 * residual * (*jac)[k][0];
+      gradEpsFrac += 2.0 * residual * (*jac)[k][1];
+    }
+
+    ++diagnosticEval;
+
+    std::cerr << std::scientific << std::setprecision(8)
+              << "[AspClean2026 optimizer]"
+              << " eval=" << diagnosticEval
+              << " frac=" << f
+              << " epsFrac=" << ef
+              << " objective=" << objective
+              << " gradFrac=" << gradFrac
+              << " gradEpsFrac=" << gradEpsFrac
+              << " absGradFrac=" << std::abs(gradFrac)
+              << " absGradEpsFrac=" << std::abs(gradEpsFrac)
+              << '\n';* /
+  };
+
+  minlmstate state;
+  minlmcreatevj(m, x, state);
+  minlmsetbc(state, lowerBounds, upperBounds);
+  minlmsetscale(state, scale);
+  // This ALGLIB version uses (state, epsx, maxits), not the older
+  // (state, epsg, epsf, epsx, maxits) signature. Not SciPy TRF tolerances.
+  minlmsetcond(state, 1.0e-3, 10);
+  
+  minlmreport report;
+
+  minlmoptimize(state, asp2026Residuals, asp2026ResidualsJacobian,
+                nullptr, &context);
+  minlmresults(state, x, report);
+
+  /*std::cerr << std::scientific << std::setprecision(8)
+            << "[AspClean2026 optimizer final]"
+            << " terminationtype=" << report.terminationtype
+            << " frac=" << x[0]
+            << " epsFrac=" << x[1]
+            << '\n';* /
+
+  itsFrac = static_cast<Float>(x[0]);
+  itsEpsFrac = static_cast<Float>(x[1]);
+
+  itsResidualComponent = makeTanhComponent(itsFrac, itsEpsFrac);
+  itsConvolvedComponent = convolveComponent(itsResidualComponent);
+  
+  // -------- BEGIN DIAGNOSTICS --------
+
+  double dotRC = 0.0;
+  double normC2 = 0.0;
+  double normR2 = 0.0;
+
+  const auto shape = itsDirty->shape();
+  const int nx = shape[0];
+  const int ny = shape[1];
+
+  for (int j = 0; j < ny; ++j) {
+      for (int i = 0; i < nx; ++i) {
+
+          if (!insideCleanWindow(i, j)) continue;
+
+          const double r = (*itsDirty)(i, j);
+          const double c = itsConvolvedComponent(i, j);
+
+          dotRC += r * c;
+          normC2 += c * c;
+          normR2 += r * r;
+      }
+  }
+
+  const double deltaF = -2.0 * dotRC + normC2;
+
+  const double deltaF_gain =
+      -2.0 * itsGain * dotRC
+      + itsGain * itsGain * normC2;
+
+  std::cerr << "[AspClean2026 component diagnostics]"
+            << " frac=" << itsFrac
+            << " epsFrac=" << itsEpsFrac
+            << " dotRC=" << dotRC
+            << " normC2=" << normC2
+            << " F0=" << normR2
+            << " deltaF=" << deltaF
+            << " deltaF_gain=" << deltaF_gain
+            << std::endl;
+
+  // -------- END DIAGNOSTICS --------
 
   // The component is already amplitude-valued. Do not multiply it by
   // itsFrac again during the model/residual update.
   itsStrengthOptimum = max(abs(itsResidualComponent));
+
+}*/
+
+
+void AspClean2026::optimizeComponent()
+{
+  extractResidualPeak();
+  std::cerr << "[AspClean2026 peak]"
+          << " peakValue=" << itsPeakValue
+          << " peakSign=" << itsPeakSign
+          << " peakPosition=" << itsPositionOptimum
+          << std::endl;
+  
+
+  itsResidualComponent.resize(itsDirty->shape());
+  itsResidualComponent = 0.0f;
+  itsConvolvedComponent.resize(itsDirty->shape());
+  itsConvolvedComponent = 0.0f;
+
+  if (itsPeakValue == 0.0f)
+  {
+    itsStrengthOptimum = 0.0f;
+    return;
+  }
+
+  constexpr int parameterCount = 2;
+  real_1d_array x, lowerBounds, upperBounds, scale;
+  x.setlength(parameterCount);
+  lowerBounds.setlength(parameterCount);
+  upperBounds.setlength(parameterCount);
+  scale.setlength(parameterCount);
+
+  x[0] = std::clamp(itsFrac, fracMin, fracMax);
+  x[1] = std::max(itsEpsFrac, minEpsFrac);
+
+  lowerBounds[0] = fracMin;
+  upperBounds[0] = fracMax;
+  lowerBounds[1] = minEpsFrac;
+  upperBounds[1] = std::numeric_limits<double>::infinity();
+
+  scale[0] = 1.0;
+  scale[1] = 1.0;
+
+  // The Python residual vector consists of pixels where window != 0.
+  // Store their coordinates once per minor-cycle iteration.
+  std::vector<IPosition> pixels;
+
+  for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+    for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
+      if (insideCleanWindow(i, j))
+        pixels.emplace_back(2, i, j);
+
+  if (pixels.empty())
+  {
+    itsStrengthOptimum = 0.0f;
+    return;
+  }
+
+  const ae_int_t m = static_cast<ae_int_t>(pixels.size());
+
+  // ------------------------------------------------------------
+  // Component diagnostics.
+  //
+  // All diagnostics use the same residual image and pixel list
+  // as the optimizer.
+  //
+  // F0          = sum(R^2)
+  // dotRC       = sum(R * convolvedComponent)
+  // normC2      = sum(convolvedComponent^2)
+  //
+  // deltaF      = -2*dotRC + normC2
+  // deltaF_gain = -2*gain*dotRC + gain^2*normC2
+  //
+  // Negative deltaF means the squared residual is reduced.
+  // ------------------------------------------------------------
+
+  auto printComponentDiagnostics =
+      [this, &pixels](const char* label,
+                      double frac,
+                      double epsFrac,
+                      const Matrix<Float>& convolvedComponent)
+  {
+    double dotRC = 0.0;
+    double normC2 = 0.0;
+    double normR2 = 0.0;
+
+    for (const auto& pixel : pixels)
+    {
+      const Int i = pixel[0];
+      const Int j = pixel[1];
+
+      const double r = static_cast<double>((*itsDirty)(i, j));
+      const double c =
+          static_cast<double>(convolvedComponent(i, j));
+
+      dotRC += r * c;
+      normC2 += c * c;
+      normR2 += r * r;
+    }
+
+    const double gain = static_cast<double>(itsGain);
+
+    const double deltaF =
+        -2.0 * dotRC + normC2;
+
+    const double deltaF_gain =
+        -2.0 * gain * dotRC
+        + gain * gain * normC2;
+
+    const double F_full = normR2 + deltaF;
+    const double F_gain = normR2 + deltaF_gain;
+
+    const double corr =
+        (normR2 > 0.0 && normC2 > 0.0)
+            ? dotRC / std::sqrt(normR2 * normC2)
+            : 0.0;
+
+    const double optimalGain =
+        (normC2 > 0.0)
+            ? dotRC / normC2
+            : 0.0;
+
+    std::cerr << std::scientific
+              << std::setprecision(8)
+              << "[AspClean2026 " << label << "]"
+              << " frac=" << frac
+              << " epsFrac=" << epsFrac
+              << " dotRC=" << dotRC
+              << " normC2=" << normC2
+              << " corr=" << corr
+              << " optimalGain=" << optimalGain
+              << " F0=" << normR2
+              << " deltaF=" << deltaF
+              << " deltaF_gain=" << deltaF_gain
+              << " F_full=" << F_full
+              << " F_gain=" << F_gain
+              << std::endl;
+  };
+
+  // ------------------------------------------------------------
+  // INITIAL DIAGNOSTICS
+  //
+  // Evaluate the component produced by the optimizer's starting
+  // parameters, before ALGLIB changes those parameters.
+  // ------------------------------------------------------------
+
+  const double initialFrac = x[0];
+  const double initialEpsFrac = x[1];
+
+  {
+    const Matrix<Float> initialComponent =
+        makeTanhComponent(
+            static_cast<Float>(initialFrac),
+            static_cast<Float>(initialEpsFrac));
+
+    const Matrix<Float> initialConvolved =
+        convolveComponent(initialComponent);
+
+    const Int pi = itsPositionOptimum[0];
+    const Int pj = itsPositionOptimum[1];
+
+    std::cerr << "[AspClean2026 INITIAL peak response]"
+              << " peakSign=" << itsPeakSign
+              << " residual=" << (*itsDirty)(pi, pj)
+              << " component=" << initialComponent(pi, pj)
+              << " convolved=" << initialConvolved(pi, pj)
+              << std::endl;
+
+    printComponentDiagnostics(
+        "INITIAL",
+        initialFrac,
+        initialEpsFrac,
+        initialConvolved);
+  }
+
+  // ------------------------------------------------------------
+  // Original optimizer context and analytic Jacobian.
+  // ------------------------------------------------------------
+
+  std::size_t diagnosticEval = 0;
+
+  Asp2026LMContext context;
+
+  context.evaluate =
+      [this, &pixels, &diagnosticEval](
+          const real_1d_array& trial,
+          real_1d_array& fi,
+          real_2d_array* jac)
+  {
+    const Float f = static_cast<Float>(trial[0]);
+    const Float ef = static_cast<Float>(trial[1]);
+
+    const Matrix<Float> trialComponent =
+        makeTanhComponent(f, ef);
+
+    const Matrix<Float> trialConvolved =
+        convolveComponent(trialComponent);
+
+    for (ae_int_t k = 0;
+         k < static_cast<ae_int_t>(pixels.size()); ++k)
+    {
+      const Int i = pixels[k][0];
+      const Int j = pixels[k][1];
+
+      fi[k] =
+          double((*itsDirty)(i, j))
+          - double(trialConvolved(i, j));
+    }
+
+    if (!jac)
+      return;
+
+    const Float peak = std::abs(itsPeakValue);
+    const Float threshold = f * peak;
+
+    // Python:
+    // eps_frac * abs(max_res) + 1e-12
+    const Float epsilon = ef * peak + 1.0e-12f;
+
+    // ----------------------------------------------------------
+    // Analytic derivative wrt frac.
+    // ----------------------------------------------------------
+
+    Matrix<Float> componentDerivative(
+        itsDirty->shape(), 0.0f);
+
+    for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+      for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
+      {
+        if (!insideCleanWindow(i, j))
+          continue;
+
+        const Float r = (*itsDirty)(i, j);
+        const Float znum =
+            itsPeakSign * r - threshold;
+
+        if (znum < 0.0f)
+          continue;
+
+        const Float z = znum / epsilon;
+        const Float t = std::tanh(z);
+        const Float sech2 = 1.0f - t * t;
+
+        componentDerivative(i, j) =
+            -r * sech2 * peak / epsilon;
+      }
+
+    Matrix<Float> convolvedDerivative =
+        convolveComponent(componentDerivative);
+
+    for (ae_int_t k = 0;
+         k < static_cast<ae_int_t>(pixels.size()); ++k)
+    {
+      (*jac)[k][0] =
+          -double(convolvedDerivative(
+              pixels[k][0], pixels[k][1]));
+    }
+
+    // ----------------------------------------------------------
+    // Analytic derivative wrt eps_frac.
+    // ----------------------------------------------------------
+
+    componentDerivative = 0.0f;
+
+    for (Int j = blcDirty(1); j <= trcDirty(1); ++j)
+      for (Int i = blcDirty(0); i <= trcDirty(0); ++i)
+      {
+        if (!insideCleanWindow(i, j))
+          continue;
+
+        const Float r = (*itsDirty)(i, j);
+        const Float znum =
+            itsPeakSign * r - threshold;
+
+        if (znum < 0.0f)
+          continue;
+
+        const Float z = znum / epsilon;
+        const Float t = std::tanh(z);
+
+        componentDerivative(i, j) =
+            -r * (1.0f - t * t)
+            * z * peak / epsilon;
+      }
+
+    convolvedDerivative =
+        convolveComponent(componentDerivative);
+
+    for (ae_int_t k = 0;
+         k < static_cast<ae_int_t>(pixels.size()); ++k)
+    {
+      (*jac)[k][1] =
+          -double(convolvedDerivative(
+              pixels[k][0], pixels[k][1]));
+    }
+  };
+
+  // ------------------------------------------------------------
+  // Original ALGLIB optimization.
+  // ------------------------------------------------------------
+
+  minlmstate state;
+  minlmcreatevj(m, x, state);
+  minlmsetbc(state, lowerBounds, upperBounds);
+  minlmsetscale(state, scale);
+  minlmsetcond(state, 1.0e-3, 10);
+
+  minlmreport report;
+
+  minlmoptimize(
+      state,
+      asp2026Residuals,
+      asp2026ResidualsJacobian,
+      nullptr,
+      &context);
+
+  minlmresults(state, x, report);
+
+  itsFrac = static_cast<Float>(x[0]);
+  itsEpsFrac = static_cast<Float>(x[1]);
+
+  // ------------------------------------------------------------
+  // FINAL COMPONENT
+  // ------------------------------------------------------------
+
+  itsResidualComponent =
+      makeTanhComponent(itsFrac, itsEpsFrac);
+
+  itsConvolvedComponent =
+      convolveComponent(itsResidualComponent);
+
+  // debug output
+  const Int pi = itsPositionOptimum[0];
+  const Int pj = itsPositionOptimum[1];
+
+  std::cerr << "[AspClean2026 FINAL peak response]"
+            << " residual=" << (*itsDirty)(pi,pj)
+            << " component=" << itsResidualComponent(pi,pj)
+            << " convolved=" << itsConvolvedComponent(pi,pj)
+            << std::endl;
+
+  // ------------------------------------------------------------
+  // FINAL DIAGNOSTICS
+  //
+  // Evaluate the component that will actually be used by
+  // updateModelAndResidual().
+  // ------------------------------------------------------------
+
+  printComponentDiagnostics(
+      "FINAL",
+      itsFrac,
+      itsEpsFrac,
+      itsConvolvedComponent);
+
+  std::cerr << "[AspClean2026 optimizer final]"
+            << " terminationtype=" << report.terminationtype
+            << " frac=" << itsFrac
+            << " epsFrac=" << itsEpsFrac
+            << std::endl;
+
+  itsStrengthOptimum =
+      max(abs(itsResidualComponent));
 }
+
 
 void AspClean2026::updateModelAndResidual(
     Matrix<Float>& model,
@@ -552,4 +1147,3 @@ Bool AspClean2026::useLegacyScaleImagePath() const
 { return false; }
 
 } // namespace casa
-
