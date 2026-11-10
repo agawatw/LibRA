@@ -196,8 +196,12 @@ void AspClean2026::extractResidualPeak()
   AlwaysAssert(itsInitScaleMasks.nelements() == 1, AipsError);
 
   const IPosition shape = itsDirty->shape();
+  // Peak for component construction: positive-only mode
   Float peak = 0.0f;
   IPosition peakPosition(shape.nelements(), 0);
+
+  // Peak for convergence monitoring: absolute residual
+  Float absolutePeak = 0.0f;
 
   for (Int j = blcDirty(1); j <= trcDirty(1); ++j) 
   {
@@ -213,12 +217,13 @@ void AspClean2026::extractResidualPeak()
         peak = value;
         peakPosition = IPosition(2, i, j);
       }
+      absolutePeak = std::max(absolutePeak, std::abs(value));
     }
   }
 
   itsPositionOptimum = peakPosition;
   itsPeakValue = peak;
-  itsPeakResidual = std::abs(peak);
+  itsPeakResidual = absolutePeak;
   itsPeakSign = (peak >= 0.0f) ? 1.0f : -1.0f;
 
   // These values keep the legacy stopping/bookkeeping code well-defined,
